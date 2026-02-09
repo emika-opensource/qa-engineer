@@ -30,8 +30,13 @@ async function ensureDataDir() {
             projects: [],
             testCases: [],
             testRuns: [],
-            testFiles: []
+            testFiles: [],
+            resources: []
         }, { spaces: 2 });
+    } else {
+        // Migrate: add resources array if missing
+        const db = await fs.readJson(dbFile);
+        if (!db.resources) { db.resources = []; await fs.writeJson(dbFile, db, { spaces: 2 }); }
     }
 }
 
@@ -392,6 +397,62 @@ function parseTestResults(output) {
 
     return results;
 }
+
+// ── Resources API ──
+
+app.get('/api/resources', async (req, res) => {
+    const db = await loadDb();
+    let resources = db.resources || [];
+    if (req.query.type) resources = resources.filter(r => r.type === req.query.type);
+    if (req.query.projectId) resources = resources.filter(r => r.projectId === req.query.projectId);
+    if (req.query.tag) resources = resources.filter(r => (r.tags || []).includes(req.query.tag));
+    res.json(resources);
+});
+
+app.get('/api/resources/:id', async (req, res) => {
+    const db = await loadDb();
+    const r = (db.resources || []).find(x => x.id === req.params.id);
+    if (!r) return res.status(404).json({ error: 'Resource not found' });
+    res.json(r);
+});
+
+app.post('/api/resources', async (req, res) => {
+    const db = await loadDb();
+    if (!db.resources) db.resources = [];
+    const resource = {
+        id: uuidv4(),
+        name: req.body.name,
+        type: req.body.type || 'note', // credential, endpoint, doc, env, note
+        projectId: req.body.projectId || null,
+        entries: req.body.entries || [], // [{key, value}]
+        content: req.body.content || '',
+        tags: req.body.tags || [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+    };
+    if (!resource.name) return res.status(400).json({ error: 'Name required' });
+    db.resources.push(resource);
+    await saveDb(db);
+    res.status(201).json(resource);
+});
+
+app.put('/api/resources/:id', async (req, res) => {
+    const db = await loadDb();
+    if (!db.resources) db.resources = [];
+    const idx = db.resources.findIndex(x => x.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Resource not found' });
+    db.resources[idx] = { ...db.resources[idx], ...req.body, updatedAt: new Date().toISOString() };
+    await saveDb(db);
+    res.json(db.resources[idx]);
+});
+
+app.delete('/api/resources/:id', async (req, res) => {
+    const db = await loadDb();
+    if (!db.resources) db.resources = [];
+    db.resources = db.resources.filter(x => x.id !== req.params.id);
+    await saveDb(db);
+    res.json({ message: 'Deleted' });
+});
 
 // ── Stats ──
 

@@ -43,7 +43,57 @@ See `TOOLS.md` for complete API reference.
 - **Test Cases**: `GET/POST/PUT/DELETE /api/test-cases` — document what to test
 - **Test Files**: `GET/POST/PUT/DELETE /api/test-files` — actual test code (syncs to disk)
 - **Test Runs**: `GET/POST /api/test-runs` — execute tests and see results
+- **Resources**: `GET/POST/PUT/DELETE /api/resources` — credentials, API docs, environments, reference data
 - **Stats**: `GET /api/stats` — dashboard statistics
+
+## Resources — Your Knowledge Base
+
+Resources store everything tests need: credentials, API endpoints, documentation, and environment configs. **Always check resources before writing tests.**
+
+### Loading Resources
+Before writing any test, fetch relevant resources:
+```
+GET /api/resources?type=credential          # Get all credentials
+GET /api/resources?type=endpoint            # Get API endpoint configs
+GET /api/resources?projectId=<id>           # Get project-specific resources
+GET /api/resources?tag=production           # Filter by tag
+```
+
+### Using Resources in Tests
+When a user gives you credentials or API details, store them as resources AND use them in tests:
+```
+POST /api/resources
+{
+  "name": "Production API Auth",
+  "type": "credential",
+  "projectId": "...",
+  "entries": [
+    { "key": "BASE_URL", "value": "https://api.emika.ai" },
+    { "key": "API_KEY", "value": "sk-..." },
+    { "key": "TEST_USER_EMAIL", "value": "test@example.com" },
+    { "key": "TEST_USER_PASSWORD", "value": "..." }
+  ],
+  "tags": ["production", "auth"]
+}
+```
+
+### Resource Types
+- **credential**: API keys, tokens, login credentials — key-value pairs, sensitive values auto-masked in UI
+- **endpoint**: API base URLs, webhook URLs, service endpoints — key-value pairs
+- **doc**: API documentation, swagger specs, requirements — freeform content
+- **env**: Environment configurations (staging, production, CI) — key-value pairs
+- **note**: General reference notes, test plans, setup instructions — freeform content
+
+### When the User Provides Info
+If a user shares an API key, URL, login, or documentation:
+1. **Store it as a resource** immediately (don't just use it in one test)
+2. **Tag it** by environment (production, staging, dev) and purpose (auth, billing, etc.)
+3. **Reference it** from your tests — read resources to get current values
+
+### Before Each Test Session
+1. `GET /api/resources` — load all resources
+2. Extract credentials and endpoints relevant to the project
+3. Use real values from resources, not hardcoded placeholders
 
 ## Workflow
 

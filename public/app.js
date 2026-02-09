@@ -6,9 +6,13 @@ class QADashboard {
         this.testCases = [];
         this.testFiles = [];
         this.testRuns = [];
+        this.resources = [];
         this.currentView = 'dashboard';
         this.editingFileId = null;
         this.editingTcId = null;
+        this.editingResId = null;
+        this._detailRunId = null;
+        this._detailRun = null;
         this.init();
     }
 
@@ -17,6 +21,7 @@ class QADashboard {
         this.setupModals();
         this.setupCodeViewer();
         this.setupRunDetail();
+        this.setupResources();
         await this.loadAll();
         this.renderCurrentView();
     }
@@ -25,9 +30,7 @@ class QADashboard {
 
     setupNav() {
         document.querySelectorAll('.nav-item').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.switchView(btn.dataset.view);
-            });
+            btn.addEventListener('click', () => this.switchView(btn.dataset.view));
         });
     }
 
@@ -48,6 +51,7 @@ class QADashboard {
             case 'test-cases': this.renderTestCases(); break;
             case 'test-files': this.renderTestFiles(); break;
             case 'test-runs': this.renderTestRuns(); break;
+            case 'resources': this.renderResources(); break;
         }
         this.renderSidebarStats();
     }
@@ -55,16 +59,18 @@ class QADashboard {
     // ── Data ──
 
     async loadAll() {
-        const [projects, testCases, testFiles, testRuns] = await Promise.all([
+        const [projects, testCases, testFiles, testRuns, resources] = await Promise.all([
             this.api('GET', '/api/projects'),
             this.api('GET', '/api/test-cases'),
             this.api('GET', '/api/test-files'),
-            this.api('GET', '/api/test-runs')
+            this.api('GET', '/api/test-runs'),
+            this.api('GET', '/api/resources')
         ]);
         this.projects = projects || [];
         this.testCases = testCases || [];
         this.testFiles = testFiles || [];
         this.testRuns = testRuns || [];
+        this.resources = resources || [];
     }
 
     async api(method, url, body) {
@@ -113,9 +119,9 @@ class QADashboard {
                 <div class="stat-card-sub">${lastRun ? this.timeAgo(lastRun.completedAt || lastRun.startedAt) + (lastRun.duration ? ` · ${(lastRun.duration / 1000).toFixed(1)}s` : '') : 'No runs yet'}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-card-label">Total Test Runs</div>
-                <div class="stat-card-value">${totalRuns}</div>
-                <div class="stat-card-sub">Lifetime executions</div>
+                <div class="stat-card-label">Resources</div>
+                <div class="stat-card-value">${this.resources.length}</div>
+                <div class="stat-card-sub">${this.resources.filter(r => r.type === 'credential').length} creds · ${this.resources.filter(r => r.type === 'endpoint').length} endpoints · ${this.resources.filter(r => r.type === 'doc').length} docs</div>
             </div>
         `;
     }
@@ -157,8 +163,8 @@ class QADashboard {
                         ${lastRun ? `<span class="tag tag-${lastRun.status}">${lastRun.status}</span>` : ''}
                     </div>
                     <div class="list-item-actions">
-                        <button class="btn btn-accent btn-sm run-project-btn" data-id="${p.id}" title="Run all tests">Run</button>
-                        <button class="btn btn-danger btn-sm delete-project-btn" data-id="${p.id}" title="Delete">Del</button>
+                        <button class="btn btn-accent btn-sm run-project-btn" data-id="${p.id}">Run</button>
+                        <button class="btn btn-danger btn-sm delete-project-btn" data-id="${p.id}">Del</button>
                     </div>
                 </div>
             `;
@@ -170,7 +176,6 @@ class QADashboard {
                 await this.runTests({ projectId: btn.dataset.id });
             });
         });
-
         list.querySelectorAll('.delete-project-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -186,7 +191,6 @@ class QADashboard {
     renderTestCases() {
         const list = document.getElementById('test-cases-list');
         this.updateProjectSelects();
-
         let cases = [...this.testCases];
         const filterProject = document.getElementById('tc-filter-project').value;
         const filterType = document.getElementById('tc-filter-type').value;
@@ -216,25 +220,14 @@ class QADashboard {
                         <button class="btn btn-ghost btn-sm edit-tc-btn" data-id="${tc.id}">Edit</button>
                         <button class="btn btn-danger btn-sm delete-tc-btn" data-id="${tc.id}">Del</button>
                     </div>
-                </div>
-            `;
+                </div>`;
         }).join('');
 
         list.querySelectorAll('.edit-tc-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const tc = this.testCases.find(t => t.id === btn.dataset.id);
-                if (tc) this.openTestCaseModal(tc);
-            });
+            btn.addEventListener('click', (e) => { e.stopPropagation(); const tc = this.testCases.find(t => t.id === btn.dataset.id); if (tc) this.openTestCaseModal(tc); });
         });
-
         list.querySelectorAll('.delete-tc-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (!confirm('Delete this test case?')) return;
-                await this.api('DELETE', `/api/test-cases/${btn.dataset.id}`);
-                await this.renderCurrentView();
-            });
+            btn.addEventListener('click', async (e) => { e.stopPropagation(); if (!confirm('Delete this test case?')) return; await this.api('DELETE', `/api/test-cases/${btn.dataset.id}`); await this.renderCurrentView(); });
         });
     }
 
@@ -268,8 +261,7 @@ class QADashboard {
                         <button class="btn btn-accent btn-sm run-file-btn" data-id="${f.id}">Run</button>
                         <button class="btn btn-danger btn-sm delete-file-btn" data-id="${f.id}">Del</button>
                     </div>
-                </div>
-            `;
+                </div>`;
         }).join('');
 
         list.querySelectorAll('.open-file-btn, .list-item[data-file-id]').forEach(el => {
@@ -280,21 +272,11 @@ class QADashboard {
             };
             el.addEventListener('click', handler);
         });
-
         list.querySelectorAll('.run-file-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                await this.runTests({ fileId: btn.dataset.id });
-            });
+            btn.addEventListener('click', async (e) => { e.stopPropagation(); await this.runTests({ fileId: btn.dataset.id }); });
         });
-
         list.querySelectorAll('.delete-file-btn').forEach(btn => {
-            btn.addEventListener('click', async (e) => {
-                e.stopPropagation();
-                if (!confirm('Delete this test file?')) return;
-                await this.api('DELETE', `/api/test-files/${btn.dataset.id}`);
-                await this.renderCurrentView();
-            });
+            btn.addEventListener('click', async (e) => { e.stopPropagation(); if (!confirm('Delete this test file?')) return; await this.api('DELETE', `/api/test-files/${btn.dataset.id}`); await this.renderCurrentView(); });
         });
     }
 
@@ -303,21 +285,16 @@ class QADashboard {
     renderTestRuns() {
         const summary = document.getElementById('runs-summary');
         const list = document.getElementById('test-runs-list');
-
-        // Filter
         const filterStatus = document.getElementById('tr-filter-status').value;
         let runs = [...this.testRuns];
         if (filterStatus) runs = runs.filter(r => r.status === filterStatus);
 
-        // Summary stats (unfiltered)
         const allRuns = this.testRuns;
         const totalPassed = allRuns.filter(r => r.status === 'passed').length;
         const totalFailed = allRuns.filter(r => r.status === 'failed').length;
-        const totalRunning = allRuns.filter(r => r.status === 'running').length;
         const passRate = allRuns.length > 0 ? Math.round((totalPassed / allRuns.length) * 100) : 0;
         const avgDuration = allRuns.filter(r => r.duration).reduce((a, r) => a + r.duration, 0) / (allRuns.filter(r => r.duration).length || 1);
 
-        // Recent trend (last 10)
         const recent = allRuns.slice(0, 10);
         const trendHtml = recent.map(r => {
             const cls = r.status === 'passed' ? 'passed' : r.status === 'failed' ? 'failed' : r.status === 'running' ? 'running' : 'error';
@@ -325,28 +302,10 @@ class QADashboard {
         }).join('');
 
         summary.innerHTML = `
-            <div class="runs-summary-card">
-                <div>
-                    <div class="runs-summary-value">${allRuns.length}</div>
-                    <div class="runs-summary-label">Total Runs</div>
-                </div>
-            </div>
-            <div class="runs-summary-card">
-                <div>
-                    <div class="runs-summary-value" style="color:var(--green)">${passRate}%</div>
-                    <div class="runs-summary-label">Pass Rate</div>
-                </div>
-            </div>
-            <div class="runs-summary-card">
-                <div>
-                    <div class="runs-summary-value">${avgDuration > 0 ? (avgDuration / 1000).toFixed(1) + 's' : '--'}</div>
-                    <div class="runs-summary-label">Avg Duration</div>
-                </div>
-            </div>
-            <div class="runs-summary-card">
-                <div style="display:flex;align-items:center;gap:3px">${trendHtml || '<span style="color:var(--text-dim);font-size:11px">No data</span>'}</div>
-                <div class="runs-summary-label" style="margin-top:4px">Recent Trend</div>
-            </div>
+            <div class="runs-summary-card"><div><div class="runs-summary-value">${allRuns.length}</div><div class="runs-summary-label">Total Runs</div></div></div>
+            <div class="runs-summary-card"><div><div class="runs-summary-value" style="color:var(--green)">${passRate}%</div><div class="runs-summary-label">Pass Rate</div></div></div>
+            <div class="runs-summary-card"><div><div class="runs-summary-value">${avgDuration > 0 ? (avgDuration / 1000).toFixed(1) + 's' : '--'}</div><div class="runs-summary-label">Avg Duration</div></div></div>
+            <div class="runs-summary-card"><div style="display:flex;align-items:center;gap:3px">${trendHtml || '<span style="color:var(--text-dim);font-size:11px">No data</span>'}</div><div class="runs-summary-label" style="margin-top:4px">Recent Trend</div></div>
         `;
 
         if (!runs.length) {
@@ -361,31 +320,17 @@ class QADashboard {
             const total = res.total || 0;
             const title = file ? this.esc(file.filename) : proj ? this.esc(proj.name) : (r.type || 'all') + ' tests';
 
-            // Progress bar
             let progressHtml = '';
             if (total > 0) {
                 const pW = Math.round((res.passed / total) * 100);
                 const fW = Math.round((res.failed / total) * 100);
                 const sW = 100 - pW - fW;
-                progressHtml = `
-                    <div class="run-card-progress">
-                        <div class="progress-bar">
-                            ${res.passed ? `<div class="progress-bar-segment passed" style="width:${pW}%"></div>` : ''}
-                            ${res.failed ? `<div class="progress-bar-segment failed" style="width:${fW}%"></div>` : ''}
-                            ${res.skipped ? `<div class="progress-bar-segment skipped" style="width:${sW}%"></div>` : ''}
-                        </div>
-                        <div class="progress-legend">
-                            ${res.passed ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--green)"></span>${res.passed} passed</span>` : ''}
-                            ${res.failed ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--red)"></span>${res.failed} failed</span>` : ''}
-                            ${res.skipped ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--text-dim)"></span>${res.skipped} skipped</span>` : ''}
-                        </div>
-                    </div>`;
+                progressHtml = `<div class="run-card-progress"><div class="progress-bar">${res.passed ? `<div class="progress-bar-segment passed" style="width:${pW}%"></div>` : ''}${res.failed ? `<div class="progress-bar-segment failed" style="width:${fW}%"></div>` : ''}${res.skipped ? `<div class="progress-bar-segment skipped" style="width:${sW}%"></div>` : ''}</div><div class="progress-legend">${res.passed ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--green)"></span>${res.passed} passed</span>` : ''}${res.failed ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--red)"></span>${res.failed} failed</span>` : ''}${res.skipped ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--text-dim)"></span>${res.skipped} skipped</span>` : ''}</div></div>`;
             } else if (r.status === 'running') {
                 progressHtml = `<div class="run-card-progress"><div class="progress-bar"><div class="progress-bar-segment running" style="width:100%"></div></div></div>`;
             }
 
-            // Parse individual test names from output
-            const tests = r.parsedTests || this.parseTestNames(r.outputPreview || '');
+            const tests = this.parseTestNames(r.outputPreview || '');
             const testChipsHtml = tests.slice(0, 8).map(t => {
                 const cls = t.status === 'passed' ? 'pass' : t.status === 'failed' ? 'fail' : 'skip';
                 const icon = t.status === 'passed' ? '&#10003;' : t.status === 'failed' ? '&#10005;' : '&#8212;';
@@ -404,12 +349,8 @@ class QADashboard {
                             <span>${this.timeAgo(r.startedAt)}</span>
                         </div>
                     </div>
-                    <div class="run-card-body">
-                        ${progressHtml}
-                        ${testChipsHtml ? `<div class="run-card-tests">${testChipsHtml}${moreTests}</div>` : ''}
-                    </div>
-                </div>
-            `;
+                    <div class="run-card-body">${progressHtml}${testChipsHtml ? `<div class="run-card-tests">${testChipsHtml}${moreTests}</div>` : ''}</div>
+                </div>`;
         }).join('');
 
         list.querySelectorAll('.run-card[data-run-id]').forEach(el => {
@@ -420,8 +361,6 @@ class QADashboard {
     parseTestNames(output) {
         if (!output) return [];
         const tests = [];
-        // Playwright list reporter: "  ✓  1 [api] › auth.spec.js:5:3 › Login › should return token (120ms)"
-        // Also: "  ✓  test name (Xms)" or "  ×  test name (Xms)"
         const lines = output.split('\n');
         for (const line of lines) {
             const pw = line.match(/^\s*[✓✗×·]\s+\d*\s*(?:\[.*?\]\s*›\s*)?(?:.*?›\s*)?(.+?)(?:\s+\(\d+.*?\))?\s*$/);
@@ -431,7 +370,6 @@ class QADashboard {
                 tests.push({ name: pw[1].trim(), status: passed ? 'passed' : failed ? 'failed' : 'skipped' });
                 continue;
             }
-            // Node test runner: "# Subtest: test name" followed by "ok" or "not ok"
             const nodeTest = line.match(/^(?:ok|not ok)\s+\d+\s+-\s+(.+?)(?:\s+#.*)?$/);
             if (nodeTest) {
                 tests.push({ name: nodeTest[1].trim(), status: line.startsWith('ok') ? 'passed' : 'failed' });
@@ -442,126 +380,365 @@ class QADashboard {
 
     async runTests(opts) {
         const run = await this.api('POST', '/api/test-runs', opts);
-        if (run) {
-            this.switchView('test-runs');
-            this.pollRun(run.id);
-        }
+        if (run) { this.switchView('test-runs'); this.pollRun(run.id); }
     }
 
     async pollRun(runId) {
         const check = async () => {
             const run = await this.api('GET', `/api/test-runs/${runId}`);
             if (!run) return;
-            if (run.status === 'running') {
-                setTimeout(check, 2000);
-            }
+            if (run.status === 'running') setTimeout(check, 2000);
             if (this.currentView === 'test-runs') this.renderTestRuns();
-            // Also update detail view if open
-            if (document.getElementById('run-detail').style.display !== 'none' && this._detailRunId === runId) {
-                this.renderRunDetail(run);
-            }
+            if (document.getElementById('run-detail').style.display !== 'none' && this._detailRunId === runId) this.renderRunDetail(run);
         };
         setTimeout(check, 2000);
+    }
+
+    // ── Run Detail ──
+
+    setupRunDetail() {
+        document.getElementById('run-detail-close').addEventListener('click', () => {
+            document.getElementById('run-detail').style.display = 'none';
+            this._detailRunId = null;
+        });
+        document.getElementById('run-detail-rerun').addEventListener('click', async () => {
+            if (!this._detailRun) return;
+            const r = this._detailRun;
+            const opts = {};
+            if (r.fileId) opts.fileId = r.fileId;
+            else if (r.projectId) opts.projectId = r.projectId;
+            else opts.type = r.type;
+            document.getElementById('run-detail').style.display = 'none';
+            await this.runTests(opts);
+        });
+        document.getElementById('run-all-btn').addEventListener('click', () => this.runTests({ type: 'api' }));
+        document.getElementById('tr-filter-status').addEventListener('change', () => this.renderTestRuns());
+
+        document.querySelectorAll('.run-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.run-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('run-tab-results').style.display = tab.dataset.tab === 'results' ? 'block' : 'none';
+                document.getElementById('run-tab-output').style.display = tab.dataset.tab === 'output' ? 'block' : 'none';
+            });
+        });
+    }
+
+    async openRunDetail(runId) {
+        const run = await this.api('GET', `/api/test-runs/${runId}`);
+        if (!run) return;
+        this._detailRunId = runId;
+        this._detailRun = run;
+        this.renderRunDetail(run);
+        document.getElementById('run-detail').style.display = 'flex';
+        document.querySelectorAll('.run-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'results'));
+        document.getElementById('run-tab-results').style.display = 'block';
+        document.getElementById('run-tab-output').style.display = 'none';
+    }
+
+    renderRunDetail(run) {
+        document.getElementById('run-detail-status').innerHTML = `<span class="tag tag-${run.status}">${run.status.toUpperCase()}</span>`;
+        const file = this.testFiles.find(f => f.id === run.fileId);
+        document.getElementById('run-detail-info').textContent = file ? file.filename : (run.command || '');
+
+        const res = run.results || {};
+        const total = res.total || 0;
+        const passRate = total > 0 ? Math.round((res.passed / total) * 100) : 0;
+
+        let progressHtml = '';
+        if (total > 0) {
+            const pW = Math.round((res.passed / total) * 100);
+            const fW = Math.round((res.failed / total) * 100);
+            const sW = 100 - pW - fW;
+            progressHtml = `<div class="run-stat" style="flex:1;min-width:200px"><div class="run-stat-label">Progress</div><div class="progress-bar" style="margin-top:6px">${res.passed ? `<div class="progress-bar-segment passed" style="width:${pW}%"></div>` : ''}${res.failed ? `<div class="progress-bar-segment failed" style="width:${fW}%"></div>` : ''}${res.skipped ? `<div class="progress-bar-segment skipped" style="width:${sW}%"></div>` : ''}</div></div>`;
+        }
+
+        document.getElementById('run-detail-stats').innerHTML = `
+            <div class="run-stat"><div class="run-stat-label">Total</div><div class="run-stat-value">${total}</div></div>
+            <div class="run-stat"><div class="run-stat-label">Passed</div><div class="run-stat-value" style="color:var(--green)">${res.passed || 0}</div></div>
+            <div class="run-stat"><div class="run-stat-label">Failed</div><div class="run-stat-value" style="color:var(--red)">${res.failed || 0}</div></div>
+            <div class="run-stat"><div class="run-stat-label">Pass Rate</div><div class="run-stat-value">${passRate}%</div></div>
+            <div class="run-stat"><div class="run-stat-label">Duration</div><div class="run-stat-value">${run.duration ? (run.duration / 1000).toFixed(1) + 's' : '—'}</div></div>
+            ${progressHtml}
+        `;
+
+        const tests = this.parseDetailedTests(run.output || '');
+        const resultsList = document.getElementById('test-results-list');
+
+        if (tests.length > 0) {
+            const failed = tests.filter(t => t.status === 'failed');
+            const passed = tests.filter(t => t.status === 'passed');
+            const skipped = tests.filter(t => t.status === 'skipped');
+            let html = '';
+            if (failed.length) { html += `<div class="test-result-group"><div class="test-result-group-title">Failed (${failed.length})</div>${failed.map(t => this.renderTestResult(t)).join('')}</div>`; }
+            if (passed.length) { html += `<div class="test-result-group"><div class="test-result-group-title">Passed (${passed.length})</div>${passed.map(t => this.renderTestResult(t)).join('')}</div>`; }
+            if (skipped.length) { html += `<div class="test-result-group"><div class="test-result-group-title">Skipped (${skipped.length})</div>${skipped.map(t => this.renderTestResult(t)).join('')}</div>`; }
+            resultsList.innerHTML = html;
+        } else if (run.status === 'running') {
+            resultsList.innerHTML = '<div class="empty-state"><div class="empty-state-text">Tests are running...</div></div>';
+        } else {
+            resultsList.innerHTML = '<div class="empty-state"><div class="empty-state-text">No individual test results parsed. Check the Output tab.</div></div>';
+        }
+
+        document.getElementById('run-output').innerHTML = this.formatRunOutput(run.output || 'No output');
+    }
+
+    renderTestResult(t) {
+        const cls = t.status === 'passed' ? 'pass' : t.status === 'failed' ? 'fail' : 'skip';
+        const icon = t.status === 'passed' ? '&#10003;' : t.status === 'failed' ? '&#10005;' : '&#8212;';
+        let html = `<div class="test-result-item"><div class="test-result-icon ${cls}">${icon}</div><div class="test-result-name">${this.esc(t.name)}</div>${t.duration ? `<div class="test-result-duration">${t.duration}</div>` : ''}</div>`;
+        if (t.error) html += `<div class="test-result-error">${this.esc(t.error)}</div>`;
+        return html;
+    }
+
+    parseDetailedTests(output) {
+        if (!output) return [];
+        const tests = [];
+        const lines = output.split('\n');
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const pw = line.match(/^\s*([✓✗×·])\s+\d*\s*(.+?)(?:\s+\((\d+.*?)\))?\s*$/);
+            if (pw) {
+                const status = pw[1] === '✓' ? 'passed' : (pw[1] === '✗' || pw[1] === '×') ? 'failed' : 'skipped';
+                const name = pw[2].replace(/^\[.*?\]\s*›\s*/, '').replace(/^.*?›\s*/, '').trim() || pw[2].trim();
+                let error = '';
+                if (status === 'failed') {
+                    let j = i + 1;
+                    const errLines = [];
+                    while (j < lines.length && (lines[j].match(/^\s{4,}/) || lines[j].trim() === '')) {
+                        if (lines[j].trim()) errLines.push(lines[j].trimStart());
+                        j++;
+                    }
+                    error = errLines.join('\n').trim();
+                }
+                tests.push({ name, status, duration: pw[3] || '', error });
+                continue;
+            }
+            const node = line.match(/^(ok|not ok)\s+\d+\s+-\s+(.+?)(?:\s+#\s*(.*))?$/);
+            if (node) tests.push({ name: node[2].trim(), status: node[1] === 'ok' ? 'passed' : 'failed', duration: node[3] || '', error: '' });
+        }
+        return tests;
+    }
+
+    formatRunOutput(output) {
+        let html = this.escHtml(output);
+        html = html.replace(/^(\s*✓\s+.*)$/gm, '<span class="out-pass">$1</span>');
+        html = html.replace(/^(\s*[✗×]\s+.*)$/gm, '<span class="out-fail">$1</span>');
+        html = html.replace(/(\d+ passed)/g, '<span class="out-pass">$1</span>');
+        html = html.replace(/(\d+ failed)/g, '<span class="out-fail">$1</span>');
+        html = html.replace(/^(Running .*)$/gm, '<span class="out-info">$1</span>');
+        return html;
+    }
+
+    // ── Resources ──
+
+    renderResources() {
+        const list = document.getElementById('resources-list');
+        let resources = [...this.resources];
+        const filterType = document.getElementById('res-filter-type').value;
+        if (filterType) resources = resources.filter(r => r.type === filterType);
+
+        if (!resources.length) {
+            list.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">—</div><div class="empty-state-text">No resources yet. Add credentials, API endpoints, or documentation for your tests.</div></div>';
+            return;
+        }
+
+        const icons = {
+            credential: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="8" width="14" height="8" rx="2"/><path d="M6 8V5a4 4 0 018 0v3"/><circle cx="10" cy="12" r="1.5"/></svg>',
+            endpoint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3a11 11 0 014 7 11 11 0 01-4 7 11 11 0 01-4-7 11 11 0 014-7z"/></svg>',
+            doc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3h7l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M12 3v4h4"/></svg>',
+            env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l6-3 6 3v4c0 4-3 7-6 8-3-1-6-4-6-8z"/></svg>',
+            note: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M7 7h6M7 10h6M7 13h3"/></svg>'
+        };
+
+        list.innerHTML = resources.map(r => {
+            const proj = this.projects.find(p => p.id === r.projectId);
+            let bodyHtml = '';
+            if (r.entries && r.entries.length > 0) {
+                bodyHtml = '<div class="resource-kv">' + r.entries.slice(0, 4).map(e => {
+                    const masked = r.type === 'credential' && e.key.toLowerCase().includes('key') || e.key.toLowerCase().includes('secret') || e.key.toLowerCase().includes('password') || e.key.toLowerCase().includes('token');
+                    const val = masked ? '••••••••' : this.esc(e.value);
+                    const valCls = masked ? 'resource-kv-val masked' : 'resource-kv-val';
+                    return `<div class="resource-kv-row"><span class="resource-kv-key">${this.esc(e.key)}</span><span class="${valCls}">${val}</span></div>`;
+                }).join('') + (r.entries.length > 4 ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">+${r.entries.length - 4} more</div>` : '') + '</div>';
+            } else if (r.content) {
+                bodyHtml = `<div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-height:80px;overflow:hidden">${this.esc(r.content).slice(0, 200)}${r.content.length > 200 ? '...' : ''}</div>`;
+            }
+
+            const tagsHtml = (r.tags || []).map(t => `<span class="resource-tag">${this.esc(t)}</span>`).join('');
+
+            return `
+                <div class="resource-card" data-res-id="${r.id}">
+                    <div class="resource-card-header">
+                        <div class="resource-card-icon ${r.type}">${icons[r.type] || icons.note}</div>
+                        <div class="resource-card-name">${this.esc(r.name)}</div>
+                        <span class="tag tag-${r.type}">${r.type}</span>
+                    </div>
+                    ${proj ? `<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">${this.esc(proj.name)}</div>` : ''}
+                    <div class="resource-card-body">${bodyHtml}</div>
+                    ${tagsHtml ? `<div class="resource-card-tags">${tagsHtml}</div>` : ''}
+                    <div class="resource-card-actions">
+                        <button class="btn btn-ghost btn-sm edit-res-btn" data-id="${r.id}">Edit</button>
+                        <button class="btn btn-danger btn-sm delete-res-btn" data-id="${r.id}">Delete</button>
+                    </div>
+                </div>`;
+        }).join('');
+
+        list.querySelectorAll('.edit-res-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => { e.stopPropagation(); const r = this.resources.find(x => x.id === btn.dataset.id); if (r) this.openResourceModal(r); });
+        });
+        list.querySelectorAll('.delete-res-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => { e.stopPropagation(); if (!confirm('Delete this resource?')) return; await this.api('DELETE', `/api/resources/${btn.dataset.id}`); await this.renderCurrentView(); });
+        });
+    }
+
+    setupResources() {
+        document.getElementById('add-resource-btn').addEventListener('click', () => this.openResourceModal());
+        document.getElementById('res-modal-close').addEventListener('click', () => this.closeModal('res-modal'));
+        document.getElementById('res-cancel').addEventListener('click', () => this.closeModal('res-modal'));
+        document.getElementById('res-save').addEventListener('click', () => this.saveResource());
+        document.getElementById('res-delete').addEventListener('click', () => this.deleteResource());
+        document.getElementById('res-filter-type').addEventListener('change', () => this.renderResources());
+
+        document.getElementById('res-add-kv').addEventListener('click', () => this.addKvRow());
+
+        // Toggle KV vs content based on type
+        document.getElementById('res-type').addEventListener('change', () => this.updateResourceForm());
+    }
+
+    updateResourceForm() {
+        const type = document.getElementById('res-type').value;
+        const kvGroup = document.getElementById('res-entries-group');
+        const contentGroup = document.getElementById('res-content-group');
+        if (type === 'credential' || type === 'endpoint' || type === 'env') {
+            kvGroup.style.display = 'block';
+            contentGroup.querySelector('.form-label').textContent = 'Notes (optional)';
+        } else {
+            kvGroup.style.display = 'none';
+            contentGroup.querySelector('.form-label').textContent = 'Content';
+        }
+    }
+
+    addKvRow() {
+        const list = document.getElementById('res-kv-list');
+        const row = document.createElement('div');
+        row.className = 'kv-row';
+        row.innerHTML = '<input type="text" class="kv-key" placeholder="Key"><input type="text" class="kv-value" placeholder="Value"><button class="btn btn-ghost btn-sm kv-remove">&times;</button>';
+        row.querySelector('.kv-remove').addEventListener('click', () => row.remove());
+        list.appendChild(row);
+    }
+
+    openResourceModal(res = null) {
+        this.editingResId = res?.id || null;
+        document.getElementById('res-modal-title').textContent = res ? 'Edit Resource' : 'Add Resource';
+        document.getElementById('res-delete').style.display = res ? 'block' : 'none';
+        this.updateProjectSelects();
+
+        document.getElementById('res-name').value = res?.name || '';
+        document.getElementById('res-type').value = res?.type || 'credential';
+        document.getElementById('res-project').value = res?.projectId || '';
+        document.getElementById('res-content').value = res?.content || '';
+        document.getElementById('res-tags').value = (res?.tags || []).join(', ');
+
+        // Reset KV rows
+        const kvList = document.getElementById('res-kv-list');
+        kvList.innerHTML = '';
+        const entries = res?.entries || [{ key: '', value: '' }];
+        entries.forEach(e => {
+            const row = document.createElement('div');
+            row.className = 'kv-row';
+            row.innerHTML = `<input type="text" class="kv-key" placeholder="Key" value="${this.esc(e.key || '')}"><input type="text" class="kv-value" placeholder="Value" value="${this.esc(e.value || '')}"><button class="btn btn-ghost btn-sm kv-remove">&times;</button>`;
+            row.querySelector('.kv-remove').addEventListener('click', () => { if (kvList.children.length > 1) row.remove(); });
+            kvList.appendChild(row);
+        });
+
+        this.updateResourceForm();
+        document.getElementById('res-modal').classList.add('show');
+        document.getElementById('res-name').focus();
+    }
+
+    async saveResource() {
+        const name = document.getElementById('res-name').value.trim();
+        if (!name) return;
+
+        const entries = [];
+        document.querySelectorAll('#res-kv-list .kv-row').forEach(row => {
+            const key = row.querySelector('.kv-key').value.trim();
+            const value = row.querySelector('.kv-value').value.trim();
+            if (key) entries.push({ key, value });
+        });
+
+        const data = {
+            name,
+            type: document.getElementById('res-type').value,
+            projectId: document.getElementById('res-project').value || null,
+            entries,
+            content: document.getElementById('res-content').value.trim(),
+            tags: document.getElementById('res-tags').value.split(',').map(t => t.trim()).filter(Boolean)
+        };
+
+        if (this.editingResId) {
+            await this.api('PUT', `/api/resources/${this.editingResId}`, data);
+        } else {
+            await this.api('POST', '/api/resources', data);
+        }
+        this.closeModal('res-modal');
+        this.editingResId = null;
+        await this.renderCurrentView();
+    }
+
+    async deleteResource() {
+        if (!this.editingResId || !confirm('Delete this resource?')) return;
+        await this.api('DELETE', `/api/resources/${this.editingResId}`);
+        this.closeModal('res-modal');
+        this.editingResId = null;
+        await this.renderCurrentView();
     }
 
     // ── Syntax Highlighting ──
 
     highlightCode(code) {
-        // Escape HTML first
-        let escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-        // Tokenize with regex - order matters
-        const tokens = [];
-        const regex = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)\b|\b\d+(?:\.\d+)?\b|\w+(?=\s*\()|(?<=\.)\w+/g;
-
-        let result = '';
-        let lastIndex = 0;
-
-        // Work on the escaped string for matching, but we need to match on original
-        // Actually, let's tokenize on original code, then build escaped result
         const raw = code;
         const rawRegex = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)\b|\b\d+(?:\.\d+)?\b|\w+(?=\s*\()|(?<=\.)\w+/g;
-
-        let match;
-        result = '';
-        lastIndex = 0;
+        let match, result = '', lastIndex = 0;
 
         while ((match = rawRegex.exec(raw)) !== null) {
-            // Add unhighlighted text before this match
-            if (match.index > lastIndex) {
-                result += this.escHtml(raw.substring(lastIndex, match.index));
-            }
-
+            if (match.index > lastIndex) result += this.escHtml(raw.substring(lastIndex, match.index));
             const text = match[0];
             const escapedText = this.escHtml(text);
             let cls = '';
-
-            if (text.startsWith('//') || text.startsWith('/*')) {
-                cls = 'sh-comment';
-            } else if (text.startsWith('"') || text.startsWith("'") || text.startsWith('`')) {
-                cls = 'sh-string';
-            } else if (/^(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)$/.test(text)) {
-                cls = 'sh-keyword';
-            } else if (/^\d+(?:\.\d+)?$/.test(text)) {
-                cls = 'sh-number';
-            } else if (match.index > 0 && raw[match.index - 1] === '.') {
-                cls = 'sh-property';
-            } else {
-                cls = 'sh-function';
-            }
-
+            if (text.startsWith('//') || text.startsWith('/*')) cls = 'sh-comment';
+            else if (text.startsWith('"') || text.startsWith("'") || text.startsWith('`')) cls = 'sh-string';
+            else if (/^(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)$/.test(text)) cls = 'sh-keyword';
+            else if (/^\d+(?:\.\d+)?$/.test(text)) cls = 'sh-number';
+            else if (match.index > 0 && raw[match.index - 1] === '.') cls = 'sh-property';
+            else cls = 'sh-function';
             result += `<span class="${cls}">${escapedText}</span>`;
             lastIndex = match.index + text.length;
         }
-
-        // Add remaining text
-        if (lastIndex < raw.length) {
-            result += this.escHtml(raw.substring(lastIndex));
-        }
-
+        if (lastIndex < raw.length) result += this.escHtml(raw.substring(lastIndex));
         return result;
     }
 
-    escHtml(s) {
-        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    }
+    escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
     // ── Code Viewer ──
 
     setupCodeViewer() {
-        document.getElementById('code-close-btn').addEventListener('click', () => {
-            document.getElementById('code-viewer').style.display = 'none';
-            this.editingFileId = null;
-        });
-
+        document.getElementById('code-close-btn').addEventListener('click', () => { document.getElementById('code-viewer').style.display = 'none'; this.editingFileId = null; });
         document.getElementById('code-save-btn').addEventListener('click', () => this.saveCodeFile());
-        document.getElementById('code-run-btn').addEventListener('click', () => {
-            if (this.editingFileId) this.runTests({ fileId: this.editingFileId });
-        });
+        document.getElementById('code-run-btn').addEventListener('click', () => { if (this.editingFileId) this.runTests({ fileId: this.editingFileId }); });
 
         const editor = document.getElementById('code-editor');
-        const container = document.querySelector('.code-editor-container');
-
         editor.addEventListener('input', () => this.updateEditor());
         editor.addEventListener('scroll', () => {
-            const highlight = document.getElementById('code-highlight');
-            const lineNums = document.getElementById('line-numbers');
-            highlight.scrollTop = editor.scrollTop;
-            highlight.scrollLeft = editor.scrollLeft;
-            lineNums.scrollTop = editor.scrollTop;
+            document.getElementById('code-highlight').scrollTop = editor.scrollTop;
+            document.getElementById('code-highlight').scrollLeft = editor.scrollLeft;
+            document.getElementById('line-numbers').scrollTop = editor.scrollTop;
         });
         editor.addEventListener('keydown', (e) => {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const start = editor.selectionStart;
-                editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(editor.selectionEnd);
-                editor.selectionStart = editor.selectionEnd = start + 2;
-                this.updateEditor();
-            }
-            if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                this.saveCodeFile();
-            }
+            if (e.key === 'Tab') { e.preventDefault(); const start = editor.selectionStart; editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(editor.selectionEnd); editor.selectionStart = editor.selectionEnd = start + 2; this.updateEditor(); }
+            if (e.key === 's' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.saveCodeFile(); }
         });
     }
 
@@ -580,254 +757,48 @@ class QADashboard {
         const editor = document.getElementById('code-editor');
         const code = editor.value;
         const lines = code.split('\n').length;
-        const nums = document.getElementById('line-numbers');
-        nums.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
-
-        // Update syntax highlighting
-        const highlight = document.getElementById('code-highlight');
-        highlight.querySelector('code').innerHTML = this.highlightCode(code) + '\n';
+        document.getElementById('line-numbers').innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+        document.getElementById('code-highlight').querySelector('code').innerHTML = this.highlightCode(code) + '\n';
     }
 
     async saveCodeFile() {
         if (!this.editingFileId) return;
-        const content = document.getElementById('code-editor').value;
-        await this.api('PUT', `/api/test-files/${this.editingFileId}`, { content });
-    }
-
-    // ── Run Detail ──
-
-    setupRunDetail() {
-        document.getElementById('run-detail-close').addEventListener('click', () => {
-            document.getElementById('run-detail').style.display = 'none';
-            this._detailRunId = null;
-        });
-
-        document.getElementById('run-detail-rerun').addEventListener('click', async () => {
-            if (!this._detailRun) return;
-            const r = this._detailRun;
-            const opts = {};
-            if (r.fileId) opts.fileId = r.fileId;
-            else if (r.projectId) opts.projectId = r.projectId;
-            else opts.type = r.type;
-            document.getElementById('run-detail').style.display = 'none';
-            await this.runTests(opts);
-        });
-
-        document.getElementById('run-all-btn').addEventListener('click', () => {
-            this.runTests({ type: 'api' });
-        });
-
-        document.getElementById('tr-filter-status').addEventListener('change', () => this.renderTestRuns());
-
-        // Tab switching
-        document.querySelectorAll('.run-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                document.querySelectorAll('.run-tab').forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-                document.getElementById('run-tab-results').style.display = tab.dataset.tab === 'results' ? 'block' : 'none';
-                document.getElementById('run-tab-output').style.display = tab.dataset.tab === 'output' ? 'block' : 'none';
-            });
-        });
-    }
-
-    async openRunDetail(runId) {
-        const run = await this.api('GET', `/api/test-runs/${runId}`);
-        if (!run) return;
-        this._detailRunId = runId;
-        this._detailRun = run;
-        this.renderRunDetail(run);
-        document.getElementById('run-detail').style.display = 'flex';
-        // Reset to results tab
-        document.querySelectorAll('.run-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'results'));
-        document.getElementById('run-tab-results').style.display = 'block';
-        document.getElementById('run-tab-output').style.display = 'none';
-    }
-
-    renderRunDetail(run) {
-        document.getElementById('run-detail-status').innerHTML = `<span class="tag tag-${run.status}">${run.status.toUpperCase()}</span>`;
-        const file = this.testFiles.find(f => f.id === run.fileId);
-        document.getElementById('run-detail-info').textContent = file ? file.filename : (run.command || '');
-
-        const res = run.results || {};
-        const total = res.total || 0;
-        const passRate = total > 0 ? Math.round((res.passed / total) * 100) : 0;
-
-        // Progress bar in stats
-        let progressHtml = '';
-        if (total > 0) {
-            const pW = Math.round((res.passed / total) * 100);
-            const fW = Math.round((res.failed / total) * 100);
-            const sW = 100 - pW - fW;
-            progressHtml = `
-                <div class="run-stat" style="flex:1;min-width:200px">
-                    <div class="run-stat-label">Progress</div>
-                    <div class="progress-bar" style="margin-top:6px">
-                        ${res.passed ? `<div class="progress-bar-segment passed" style="width:${pW}%"></div>` : ''}
-                        ${res.failed ? `<div class="progress-bar-segment failed" style="width:${fW}%"></div>` : ''}
-                        ${res.skipped ? `<div class="progress-bar-segment skipped" style="width:${sW}%"></div>` : ''}
-                    </div>
-                </div>`;
-        }
-
-        document.getElementById('run-detail-stats').innerHTML = `
-            <div class="run-stat"><div class="run-stat-label">Total</div><div class="run-stat-value">${total}</div></div>
-            <div class="run-stat"><div class="run-stat-label">Passed</div><div class="run-stat-value" style="color:var(--green)">${res.passed || 0}</div></div>
-            <div class="run-stat"><div class="run-stat-label">Failed</div><div class="run-stat-value" style="color:var(--red)">${res.failed || 0}</div></div>
-            <div class="run-stat"><div class="run-stat-label">Pass Rate</div><div class="run-stat-value">${passRate}%</div></div>
-            <div class="run-stat"><div class="run-stat-label">Duration</div><div class="run-stat-value">${run.duration ? (run.duration / 1000).toFixed(1) + 's' : '—'}</div></div>
-            ${progressHtml}
-        `;
-
-        // Parse test results from output
-        const tests = this.parseDetailedTests(run.output || '');
-        const resultsList = document.getElementById('test-results-list');
-
-        if (tests.length > 0) {
-            // Group failed first, then passed, then skipped
-            const failed = tests.filter(t => t.status === 'failed');
-            const passed = tests.filter(t => t.status === 'passed');
-            const skipped = tests.filter(t => t.status === 'skipped');
-
-            let html = '';
-            if (failed.length) {
-                html += `<div class="test-result-group"><div class="test-result-group-title">Failed (${failed.length})</div>`;
-                html += failed.map(t => this.renderTestResult(t)).join('');
-                html += '</div>';
-            }
-            if (passed.length) {
-                html += `<div class="test-result-group"><div class="test-result-group-title">Passed (${passed.length})</div>`;
-                html += passed.map(t => this.renderTestResult(t)).join('');
-                html += '</div>';
-            }
-            if (skipped.length) {
-                html += `<div class="test-result-group"><div class="test-result-group-title">Skipped (${skipped.length})</div>`;
-                html += skipped.map(t => this.renderTestResult(t)).join('');
-                html += '</div>';
-            }
-            resultsList.innerHTML = html;
-        } else if (run.status === 'running') {
-            resultsList.innerHTML = '<div class="empty-state"><div class="empty-state-text">Tests are running...</div></div>';
-        } else {
-            resultsList.innerHTML = '<div class="empty-state"><div class="empty-state-text">No individual test results parsed. Check the Output tab.</div></div>';
-        }
-
-        // Format output with color
-        document.getElementById('run-output').innerHTML = this.formatRunOutput(run.output || 'No output');
-    }
-
-    renderTestResult(t) {
-        const cls = t.status === 'passed' ? 'pass' : t.status === 'failed' ? 'fail' : 'skip';
-        const icon = t.status === 'passed' ? '&#10003;' : t.status === 'failed' ? '&#10005;' : '&#8212;';
-        let html = `
-            <div class="test-result-item">
-                <div class="test-result-icon ${cls}">${icon}</div>
-                <div class="test-result-name">${this.esc(t.name)}</div>
-                ${t.duration ? `<div class="test-result-duration">${t.duration}</div>` : ''}
-            </div>`;
-        if (t.error) {
-            html += `<div class="test-result-error">${this.esc(t.error)}</div>`;
-        }
-        return html;
-    }
-
-    parseDetailedTests(output) {
-        if (!output) return [];
-        const tests = [];
-        const lines = output.split('\n');
-
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-
-            // Playwright: "  ✓  1 [chromium] › file.spec.js:5:3 › Suite › test name (120ms)"
-            const pw = line.match(/^\s*([✓✗×·])\s+\d*\s*(.+?)(?:\s+\((\d+.*?)\))?\s*$/);
-            if (pw) {
-                const status = pw[1] === '✓' ? 'passed' : (pw[1] === '✗' || pw[1] === '×') ? 'failed' : 'skipped';
-                const name = pw[2].replace(/^\[.*?\]\s*›\s*/, '').replace(/^.*?›\s*/, '').trim() || pw[2].trim();
-                let error = '';
-                if (status === 'failed') {
-                    // Collect error lines following
-                    let j = i + 1;
-                    const errLines = [];
-                    while (j < lines.length && (lines[j].match(/^\s{4,}/) || lines[j].trim() === '')) {
-                        if (lines[j].trim()) errLines.push(lines[j].trimStart());
-                        j++;
-                    }
-                    error = errLines.join('\n').trim();
-                }
-                tests.push({ name, status, duration: pw[3] || '', error });
-                continue;
-            }
-
-            // Node test runner: "ok 1 - test name" / "not ok 2 - test name"
-            const node = line.match(/^(ok|not ok)\s+\d+\s+-\s+(.+?)(?:\s+#\s*(.*))?$/);
-            if (node) {
-                tests.push({
-                    name: node[2].trim(),
-                    status: node[1] === 'ok' ? 'passed' : 'failed',
-                    duration: node[3] || '',
-                    error: ''
-                });
-            }
-        }
-        return tests;
-    }
-
-    formatRunOutput(output) {
-        let html = this.escHtml(output);
-        // Colorize pass/fail patterns
-        html = html.replace(/^(\s*✓\s+.*)$/gm, '<span class="out-pass">$1</span>');
-        html = html.replace(/^(\s*[✗×]\s+.*)$/gm, '<span class="out-fail">$1</span>');
-        html = html.replace(/(\d+ passed)/g, '<span class="out-pass">$1</span>');
-        html = html.replace(/(\d+ failed)/g, '<span class="out-fail">$1</span>');
-        html = html.replace(/^(Running .*)$/gm, '<span class="out-info">$1</span>');
-        return html;
+        await this.api('PUT', `/api/test-files/${this.editingFileId}`, { content: document.getElementById('code-editor').value });
     }
 
     // ── Modals ──
 
     setupModals() {
-        // Project modal
         document.getElementById('add-project-btn').addEventListener('click', () => this.openProjectModal());
         document.getElementById('project-modal-close').addEventListener('click', () => this.closeModal('project-modal'));
         document.getElementById('project-cancel').addEventListener('click', () => this.closeModal('project-modal'));
         document.getElementById('project-save').addEventListener('click', () => this.saveProject());
         document.querySelectorAll('#project-type-picker .type-option').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('#project-type-picker .type-option').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-            });
+            btn.addEventListener('click', () => { document.querySelectorAll('#project-type-picker .type-option').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); });
         });
 
-        // Test case modal
         document.getElementById('add-test-case-btn').addEventListener('click', () => this.openTestCaseModal());
         document.getElementById('tc-modal-close').addEventListener('click', () => this.closeModal('tc-modal'));
         document.getElementById('tc-cancel').addEventListener('click', () => this.closeModal('tc-modal'));
         document.getElementById('tc-save').addEventListener('click', () => this.saveTestCase());
         document.getElementById('tc-delete').addEventListener('click', () => this.deleteTestCase());
         document.querySelectorAll('#tc-priority-picker .priority-option').forEach(btn => {
-            btn.addEventListener('click', () => {
-                document.querySelectorAll('#tc-priority-picker .priority-option').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-            });
+            btn.addEventListener('click', () => { document.querySelectorAll('#tc-priority-picker .priority-option').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); });
         });
 
-        // Test file modal
         document.getElementById('add-test-file-btn').addEventListener('click', () => this.openTestFileModal());
         document.getElementById('tf-modal-close').addEventListener('click', () => this.closeModal('tf-modal'));
         document.getElementById('tf-cancel').addEventListener('click', () => this.closeModal('tf-modal'));
         document.getElementById('tf-save').addEventListener('click', () => this.saveTestFile());
 
-        // Filter change listeners
         document.getElementById('tc-filter-project').addEventListener('change', () => this.renderTestCases());
         document.getElementById('tc-filter-type').addEventListener('change', () => this.renderTestCases());
         document.getElementById('tf-filter-type').addEventListener('change', () => this.renderTestFiles());
 
-        // Close modals on backdrop click
         document.querySelectorAll('.modal').forEach(m => {
             m.addEventListener('click', (e) => { if (e.target === m) m.classList.remove('show'); });
         });
 
-        // Escape
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
                 document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
@@ -852,12 +823,7 @@ class QADashboard {
         const name = document.getElementById('project-name').value.trim();
         if (!name) return;
         const type = document.querySelector('#project-type-picker .type-option.selected')?.dataset.value || 'mixed';
-        await this.api('POST', '/api/projects', {
-            name,
-            description: document.getElementById('project-desc').value.trim(),
-            baseUrl: document.getElementById('project-url').value.trim(),
-            type
-        });
+        await this.api('POST', '/api/projects', { name, description: document.getElementById('project-desc').value.trim(), baseUrl: document.getElementById('project-url').value.trim(), type });
         this.closeModal('project-modal');
         await this.renderCurrentView();
     }
@@ -867,7 +833,6 @@ class QADashboard {
         document.getElementById('tc-modal-title').textContent = tc ? 'Edit Test Case' : 'New Test Case';
         document.getElementById('tc-delete').style.display = tc ? 'block' : 'none';
         this.updateProjectSelects();
-
         if (tc) {
             document.getElementById('tc-title').value = tc.title;
             document.getElementById('tc-desc').value = tc.description || '';
@@ -893,22 +858,9 @@ class QADashboard {
         const priority = document.querySelector('#tc-priority-picker .priority-option.selected')?.dataset.value || 'medium';
         const stepsText = document.getElementById('tc-steps').value.trim();
         const steps = stepsText ? stepsText.split('\n').filter(s => s.trim()) : [];
-
-        const data = {
-            title,
-            description: document.getElementById('tc-desc').value.trim(),
-            projectId: document.getElementById('tc-project').value || null,
-            type: document.getElementById('tc-type').value,
-            priority,
-            steps,
-            expectedResult: document.getElementById('tc-expected').value.trim()
-        };
-
-        if (this.editingTcId) {
-            await this.api('PUT', `/api/test-cases/${this.editingTcId}`, data);
-        } else {
-            await this.api('POST', '/api/test-cases', data);
-        }
+        const data = { title, description: document.getElementById('tc-desc').value.trim(), projectId: document.getElementById('tc-project').value || null, type: document.getElementById('tc-type').value, priority, steps, expectedResult: document.getElementById('tc-expected').value.trim() };
+        if (this.editingTcId) await this.api('PUT', `/api/test-cases/${this.editingTcId}`, data);
+        else await this.api('POST', '/api/test-cases', data);
         this.closeModal('tc-modal');
         this.editingTcId = null;
         await this.renderCurrentView();
@@ -935,39 +887,25 @@ class QADashboard {
         if (!filename) return;
         const type = document.getElementById('tf-type').value;
         const projectId = document.getElementById('tf-project').value || null;
-
         let content;
-        if (type === 'unit') {
-            content = `const { describe, it } = require('node:test');\nconst assert = require('node:assert');\n\ndescribe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  it('should work', () => {\n    assert.strictEqual(1 + 1, 2);\n  });\n});\n`;
-        } else if (type === 'ui') {
-            content = `const { test, expect } = require('@playwright/test');\n\ntest.describe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  test('should load page', async ({ page }) => {\n    await page.goto('http://localhost:3000');\n    await expect(page).toHaveTitle(/QA Dashboard/);\n  });\n});\n`;
-        } else {
-            content = `const { test, expect } = require('@playwright/test');\n\nconst BASE_URL = process.env.API_URL || 'https://api.emika.ai';\n\ntest.describe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  test('should return health check', async ({ request }) => {\n    const res = await request.get(\`\${BASE_URL}/health\`);\n    expect(res.ok()).toBeTruthy();\n  });\n});\n`;
-        }
+        if (type === 'unit') content = `const { describe, it } = require('node:test');\nconst assert = require('node:assert');\n\ndescribe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  it('should work', () => {\n    assert.strictEqual(1 + 1, 2);\n  });\n});\n`;
+        else if (type === 'ui') content = `const { test, expect } = require('@playwright/test');\n\ntest.describe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  test('should load page', async ({ page }) => {\n    await page.goto('http://localhost:3000');\n    await expect(page).toHaveTitle(/QA Dashboard/);\n  });\n});\n`;
+        else content = `const { test, expect } = require('@playwright/test');\n\nconst BASE_URL = process.env.API_URL || 'https://api.emika.ai';\n\ntest.describe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  test('should return health check', async ({ request }) => {\n    const res = await request.get(\`\${BASE_URL}/health\`);\n    expect(res.ok()).toBeTruthy();\n  });\n});\n`;
 
-        const file = await this.api('POST', '/api/test-files', {
-            filename,
-            description: document.getElementById('tf-desc').value.trim(),
-            projectId,
-            type,
-            content
-        });
-
+        const file = await this.api('POST', '/api/test-files', { filename, description: document.getElementById('tf-desc').value.trim(), projectId, type, content });
         this.closeModal('tf-modal');
         if (file) await this.openCodeViewer(file.id);
         await this.loadAll();
     }
 
     updateProjectSelects() {
-        ['tc-project', 'tf-project', 'tc-filter-project'].forEach(id => {
+        ['tc-project', 'tf-project', 'tc-filter-project', 'res-project'].forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
             const current = sel.value;
             const isFilter = id.includes('filter');
             sel.innerHTML = isFilter ? '<option value="">All Projects</option>' : '<option value="">No Project</option>';
-            this.projects.forEach(p => {
-                sel.innerHTML += `<option value="${p.id}">${this.esc(p.name)}</option>`;
-            });
+            this.projects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${this.esc(p.name)}</option>`; });
             sel.value = current;
         });
     }
@@ -975,15 +913,8 @@ class QADashboard {
     // ── Helpers ──
 
     esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
-
-    typeLabel(type) {
-        return { api: 'API', ui: 'UI', unit: 'UT', mixed: 'MX' }[type] || '—';
-    }
-
-    statusLabel(status) {
-        return { passed: 'PASS', failed: 'FAIL', running: 'RUN', error: 'ERR' }[status] || '—';
-    }
-
+    typeLabel(type) { return { api: 'API', ui: 'UI', unit: 'UT', mixed: 'MX' }[type] || '—'; }
+    statusLabel(status) { return { passed: 'PASS', failed: 'FAIL', running: 'RUN', error: 'ERR' }[status] || '—'; }
     timeAgo(dateStr) {
         if (!dateStr) return '';
         const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
