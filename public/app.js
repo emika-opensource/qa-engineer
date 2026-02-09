@@ -463,8 +463,11 @@ class QADashboard {
 
     renderTestFiles() {
         const list = document.getElementById('test-files-list');
+        this.updateProjectSelects();
         let files = [...this.testFiles];
+        const filterProject = document.getElementById('tf-filter-project').value;
         const filterType = document.getElementById('tf-filter-type').value;
+        if (filterProject) files = files.filter(f => f.projectId === filterProject);
         if (filterType) files = files.filter(f => f.type === filterType);
 
         if (!files.length) {
@@ -513,8 +516,11 @@ class QADashboard {
     renderTestRuns() {
         const summary = document.getElementById('runs-summary');
         const list = document.getElementById('test-runs-list');
+        this.updateProjectSelects();
+        const filterProject = document.getElementById('tr-filter-project').value;
         const filterStatus = document.getElementById('tr-filter-status').value;
         let runs = [...this.testRuns];
+        if (filterProject) runs = runs.filter(r => r.projectId === filterProject);
         if (filterStatus) runs = runs.filter(r => r.status === filterStatus);
 
         const allRuns = this.testRuns;
@@ -640,6 +646,7 @@ class QADashboard {
             await this.runTests(opts);
         });
         document.getElementById('run-all-btn').addEventListener('click', () => this.runTests({ type: 'api' }));
+        document.getElementById('tr-filter-project').addEventListener('change', () => this.renderTestRuns());
         document.getElementById('tr-filter-status').addEventListener('change', () => this.renderTestRuns());
 
         document.querySelectorAll('.run-tab').forEach(tab => {
@@ -975,6 +982,7 @@ class QADashboard {
 
         document.getElementById('tc-filter-project').addEventListener('change', () => this.renderTestCases());
         document.getElementById('tc-filter-type').addEventListener('change', () => this.renderTestCases());
+        document.getElementById('tf-filter-project').addEventListener('change', () => this.renderTestFiles());
         document.getElementById('tf-filter-type').addEventListener('change', () => this.renderTestFiles());
 
         document.querySelectorAll('.modal').forEach(m => {
@@ -1081,7 +1089,7 @@ class QADashboard {
     }
 
     updateProjectSelects() {
-        ['tc-project', 'tf-project', 'tc-filter-project', 'res-project'].forEach(id => {
+        ['tc-project', 'tf-project', 'tc-filter-project', 'tf-filter-project', 'tr-filter-project', 'res-project'].forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
             const current = sel.value;
