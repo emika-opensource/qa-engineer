@@ -18,14 +18,22 @@ class QADashboard {
 
     async init() {
         this.chartPeriod = '7d';
+        // Check PIN lock before anything
+        if (await this.checkPinLock()) return; // locked — wait for PIN entry
+        this.startApp();
+    }
+
+    async startApp() {
         this.setupNav();
         this.setupModals();
         this.setupCodeViewer();
         this.setupRunDetail();
         this.setupResources();
         this.setupDashboard();
+        this.setupPin();
         await this.loadAll();
         this.renderCurrentView();
+        this.updatePinBanner();
     }
 
     // ── Navigation ──
@@ -1098,6 +1106,154 @@ class QADashboard {
             this.projects.forEach(p => { sel.innerHTML += `<option value="${p.id}">${this.esc(p.name)}</option>`; });
             sel.value = current;
         });
+    }
+
+    // ── PIN Protection ──
+
+    async checkPinLock() {
+        // Fetch current pin from server
+        const config = await this.api('GET', '/api/config');
+        const pin = config?.pin;
+        if (!pin) return false; // no pin set
+
+        // Check localStorage
+        const saved = localStorage.getItem('qa-pin-auth');
+        if (saved === pin) return false; // already authenticated
+
+        // Show lock screen
+        const lock = document.getElementById('pin-lock');
+        lock.style.display = 'flex';
+        document.querySelector('.app').style.display = 'none';
+
+        this.createPinInputs('pin-lock-inputs', (entered) => {
+            if (entered === pin) {
+                localStorage.setItem('qa-pin-auth', pin);
+                lock.style.display = 'none';
+                document.querySelector('.app').style.display = 'flex';
+                this.startApp();
+            } else {
+                document.getElementById('pin-lock-error').textContent = 'Wrong PIN';
+                document.querySelectorAll('#pin-lock-inputs .pin-digit').forEach(d => {
+                    d.classList.add('error');
+                    d.value = '';
+                    setTimeout(() => d.classList.remove('error'), 400);
+                });
+                document.querySelector('#pin-lock-inputs .pin-digit').focus();
+            }
+        });
+        return true;
+    }
+
+    createPinInputs(containerId, onComplete) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = '';
+        const inputs = [];
+        for (let i = 0; i < 4; i++) {
+            const input = document.createElement('input');
+            input.type = 'tel';
+            input.maxLength = 1;
+            input.className = 'pin-digit';
+            input.inputMode = 'numeric';
+            input.pattern = '[0-9]';
+            input.autocomplete = 'off';
+
+            input.addEventListener('input', (e) => {
+                const val = e.target.value.replace(/[^0-9]/g, '');
+                e.target.value = val;
+                if (val && i < 3) inputs[i + 1].focus();
+                // Check if all filled
+                const full = inputs.map(inp => inp.value).join('');
+                if (full.length === 4 && onComplete) onComplete(full);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Backspace' && !e.target.value && i > 0) {
+                    inputs[i - 1].focus();
+                    inputs[i - 1].value = '';
+                }
+            });
+
+            input.addEventListener('paste', (e) => {
+                e.preventDefault();
+                const pasted = (e.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').slice(0, 4);
+                for (let j = 0; j < pasted.length && j < 4; j++) {
+                    inputs[j].value = pasted[j];
+                }
+                if (pasted.length === 4 && onComplete) onComplete(pasted);
+                else if (pasted.length > 0) inputs[Math.min(pasted.length, 3)].focus();
+            });
+
+            inputs.push(input);
+            container.appendChild(input);
+        }
+        setTimeout(() => inputs[0].focus(), 100);
+        return inputs;
+    }
+
+    setupPin() {
+        document.getElementById('pincode-banner').addEventListener('click', () => this.openPinModal());
+        document.getElementById('pin-modal-close').addEventListener('click', () => this.closeModal('pin-modal'));
+        document.getElementById('pin-cancel').addEventListener('click', () => this.closeModal('pin-modal'));
+        document.getElementById('pin-save').addEventListener('click', () => this.savePin());
+        document.getElementById('pin-disable').addEventListener('click', () => this.disablePin());
+    }
+
+    async openPinModal() {
+        const config = await this.api('GET', '/api/config');
+        const currentPin = config?.pin;
+
+        const status = document.getElementById('pin-current-status');
+        const disableBtn = document.getElementById('pin-disable');
+
+        if (currentPin) {
+            status.innerHTML = `<span style="font-size:12px;color:var(--green)">PIN is active: <strong style="font-family:JetBrains Mono,monospace;letter-spacing:2px">${currentPin}</strong></span>`;
+            disableBtn.style.display = 'block';
+        } else {
+            status.innerHTML = `<span style="font-size:12px;color:var(--text-dim)">No PIN set — page is open to anyone with the link</span>`;
+            disableBtn.style.display = 'none';
+        }
+
+        this.createPinInputs('pin-settings-inputs', null);
+        // Pre-fill if exists
+        if (currentPin) {
+            const inputs = document.querySelectorAll('#pin-settings-inputs .pin-digit');
+            for (let i = 0; i < 4 && i < currentPin.length; i++) inputs[i].value = currentPin[i];
+        }
+
+        document.getElementById('pin-modal').classList.add('show');
+    }
+
+    async savePin() {
+        const inputs = document.querySelectorAll('#pin-settings-inputs .pin-digit');
+        const pin = Array.from(inputs).map(i => i.value).join('');
+        if (pin.length !== 4) {
+            inputs.forEach(i => { i.classList.add('error'); setTimeout(() => i.classList.remove('error'), 400); });
+            return;
+        }
+        await this.api('PUT', '/api/config', { pin });
+        localStorage.setItem('qa-pin-auth', pin);
+        this.closeModal('pin-modal');
+        this.updatePinBanner();
+    }
+
+    async disablePin() {
+        await this.api('PUT', '/api/config', { pin: null });
+        localStorage.removeItem('qa-pin-auth');
+        this.closeModal('pin-modal');
+        this.updatePinBanner();
+    }
+
+    async updatePinBanner() {
+        const config = await this.api('GET', '/api/config');
+        const banner = document.getElementById('pincode-banner');
+        const text = document.getElementById('pincode-banner-text');
+        if (config?.pin) {
+            banner.classList.add('active');
+            text.textContent = 'PIN protected';
+        } else {
+            banner.classList.remove('active');
+            text.textContent = 'Protect with PIN';
+        }
     }
 
     // ── Helpers ──

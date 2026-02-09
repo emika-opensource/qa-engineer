@@ -43,6 +43,10 @@
                 </button>
             </div>
             <div class="sidebar-footer">
+                <div class="pincode-banner" id="pincode-banner">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" style="width:14px;height:14px;flex-shrink:0"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5 7V5a3 3 0 016 0v2"/></svg>
+                    <span id="pincode-banner-text">Protect with PIN</span>
+                </div>
                 <div class="sidebar-stats" id="sidebar-stats"></div>
             </div>
         </nav>
@@ -379,6 +383,42 @@
                 <button class="btn btn-secondary" id="res-cancel">Cancel</button>
                 <button class="btn btn-danger" id="res-delete" style="display:none">Delete</button>
                 <button class="btn btn-primary" id="res-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN Lock Screen -->
+    <div class="pin-lock" id="pin-lock" style="display:none">
+        <div class="pin-lock-card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:32px;height:32px;color:var(--accent);margin-bottom:16px"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+            <h3 style="font-size:16px;font-weight:600;margin-bottom:4px">QA Dashboard</h3>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px">Enter PIN to continue</p>
+            <div class="pin-input-row" id="pin-lock-inputs"></div>
+            <p class="pin-error" id="pin-lock-error"></p>
+        </div>
+    </div>
+
+    <!-- PIN Settings Modal -->
+    <div class="modal" id="pin-modal">
+        <div class="modal-content" style="max-width:400px">
+            <div class="modal-header">
+                <h3>Page Protection</h3>
+                <button class="modal-close" id="pin-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.5">This page is accessible to anyone with the link. Set a 4-digit PIN so new visitors must enter it to view the dashboard.</p>
+                <div class="form-group">
+                    <label class="form-label">4-Digit PIN</label>
+                    <div class="pin-input-row" id="pin-settings-inputs"></div>
+                </div>
+                <div id="pin-current-status" style="margin-bottom:14px"></div>
+            </div>
+            <div class="modal-footer" style="justify-content:space-between">
+                <button class="btn btn-danger btn-sm" id="pin-disable" style="display:none">Disable PIN</button>
+                <div style="display:flex;gap:8px;margin-left:auto">
+                    <button class="btn btn-secondary" id="pin-cancel">Cancel</button>
+                    <button class="btn btn-primary" id="pin-save">Save PIN</button>
+                </div>
             </div>
         </div>
     </div>

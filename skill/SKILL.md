@@ -44,7 +44,17 @@ See `TOOLS.md` for complete API reference.
 - **Test Files**: `GET/POST/PUT/DELETE /api/test-files` — actual test code (syncs to disk)
 - **Test Runs**: `GET/POST /api/test-runs` — execute tests and see results
 - **Resources**: `GET/POST/PUT/DELETE /api/resources` — credentials, API docs, environments, reference data
+- **Config**: `GET/PUT /api/config` — dashboard settings (PIN protection, etc.)
 - **Stats**: `GET /api/stats` — dashboard statistics
+
+### PIN Protection
+The dashboard can be protected with a 4-digit PIN. Manage it via the config API:
+```
+GET /api/config                    # Read current config (includes "pin" if set)
+PUT /api/config { "pin": "1234" }  # Set or change PIN
+PUT /api/config { "pin": null }    # Disable PIN
+```
+When a user asks you to set, change, or remove the PIN, use the config API directly. The PIN is stored server-side; visitors' browsers cache it in localStorage after entering it once.
 
 ## Resources — Your Reference Library
 

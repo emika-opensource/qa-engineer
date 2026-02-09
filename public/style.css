@@ -1133,6 +1133,77 @@ body {
 .sh-function { color: #dcdcaa; }
 .sh-property { color: #9cdcfe; }
 
+/* ── PIN Lock ── */
+.pin-lock {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pin-lock-card {
+    text-align: center;
+    padding: 40px;
+}
+
+.pin-input-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.pin-digit {
+    width: 48px;
+    height: 56px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    font-weight: 600;
+    text-align: center;
+    caret-color: var(--accent);
+    transition: border-color 0.12s;
+}
+.pin-digit:focus { outline: none; border-color: rgba(192,192,192,0.4); }
+.pin-digit.error { border-color: var(--red); animation: shake 0.3s ease; }
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.pin-error {
+    font-size: 12px;
+    color: var(--red);
+    margin-top: 12px;
+    min-height: 18px;
+}
+
+/* ── PIN Banner ── */
+.pincode-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border-radius: var(--radius);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.12s;
+}
+.pincode-banner:hover { border-color: var(--border-hover); color: var(--text-muted); }
+.pincode-banner.active { border-color: rgba(34,197,94,0.3); color: var(--green); background: rgba(34,197,94,0.04); }
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .sidebar { width: 56px; min-width: 56px; }

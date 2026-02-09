@@ -483,6 +483,35 @@ function countBy(arr, key) {
     return arr.reduce((acc, item) => { acc[item[key]] = (acc[item[key]] || 0) + 1; return acc; }, {});
 }
 
+// ── Config API (PIN, settings) ──
+
+const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
+
+async function loadConfig() {
+    try { return await fs.readJson(CONFIG_FILE); }
+    catch { return {}; }
+}
+
+async function saveConfig(config) {
+    await fs.writeJson(CONFIG_FILE, config, { spaces: 2 });
+}
+
+app.get('/api/config', async (req, res) => {
+    const config = await loadConfig();
+    res.json(config);
+});
+
+app.put('/api/config', async (req, res) => {
+    const config = await loadConfig();
+    Object.assign(config, req.body);
+    // Clean null values
+    for (const k of Object.keys(config)) {
+        if (config[k] === null) delete config[k];
+    }
+    await saveConfig(config);
+    res.json(config);
+});
+
 // ── Health ──
 
 app.get('/api/health', (req, res) => {
