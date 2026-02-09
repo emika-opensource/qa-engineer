@@ -100,7 +100,12 @@ body {
 
 .sidebar-footer {
     padding: 14px 16px;
-    border-top: 1px solid var(--border);
+}
+
+.sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 10px -16px;
 }
 
 .sidebar-stats {
