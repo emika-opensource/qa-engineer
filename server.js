@@ -255,8 +255,8 @@ app.get('/api/test-runs', async (req, res) => {
     const db = await loadDb();
     let runs = db.testRuns;
     if (req.query.projectId) runs = runs.filter(r => r.projectId === req.query.projectId);
-    // Return without full output to save bandwidth
-    res.json(runs.map(r => ({ ...r, output: undefined, outputPreview: (r.output || '').slice(0, 300) })));
+    // Return without full output to save bandwidth, but include enough for test parsing
+    res.json(runs.map(r => ({ ...r, output: undefined, outputPreview: (r.output || '').slice(0, 2000) })));
 });
 
 app.get('/api/test-runs/:id', async (req, res) => {

@@ -301,35 +301,143 @@ class QADashboard {
     // ── Test Runs ──
 
     renderTestRuns() {
+        const summary = document.getElementById('runs-summary');
         const list = document.getElementById('test-runs-list');
-        if (!this.testRuns.length) {
-            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">—</div><div class="empty-state-text">No test runs yet. Run some tests to see results.</div></div>';
+
+        // Filter
+        const filterStatus = document.getElementById('tr-filter-status').value;
+        let runs = [...this.testRuns];
+        if (filterStatus) runs = runs.filter(r => r.status === filterStatus);
+
+        // Summary stats (unfiltered)
+        const allRuns = this.testRuns;
+        const totalPassed = allRuns.filter(r => r.status === 'passed').length;
+        const totalFailed = allRuns.filter(r => r.status === 'failed').length;
+        const totalRunning = allRuns.filter(r => r.status === 'running').length;
+        const passRate = allRuns.length > 0 ? Math.round((totalPassed / allRuns.length) * 100) : 0;
+        const avgDuration = allRuns.filter(r => r.duration).reduce((a, r) => a + r.duration, 0) / (allRuns.filter(r => r.duration).length || 1);
+
+        // Recent trend (last 10)
+        const recent = allRuns.slice(0, 10);
+        const trendHtml = recent.map(r => {
+            const cls = r.status === 'passed' ? 'passed' : r.status === 'failed' ? 'failed' : r.status === 'running' ? 'running' : 'error';
+            return `<div class="run-card-status ${cls}" style="width:6px;height:18px;border-radius:2px;box-shadow:none" title="${r.status}"></div>`;
+        }).join('');
+
+        summary.innerHTML = `
+            <div class="runs-summary-card">
+                <div>
+                    <div class="runs-summary-value">${allRuns.length}</div>
+                    <div class="runs-summary-label">Total Runs</div>
+                </div>
+            </div>
+            <div class="runs-summary-card">
+                <div>
+                    <div class="runs-summary-value" style="color:var(--green)">${passRate}%</div>
+                    <div class="runs-summary-label">Pass Rate</div>
+                </div>
+            </div>
+            <div class="runs-summary-card">
+                <div>
+                    <div class="runs-summary-value">${avgDuration > 0 ? (avgDuration / 1000).toFixed(1) + 's' : '--'}</div>
+                    <div class="runs-summary-label">Avg Duration</div>
+                </div>
+            </div>
+            <div class="runs-summary-card">
+                <div style="display:flex;align-items:center;gap:3px">${trendHtml || '<span style="color:var(--text-dim);font-size:11px">No data</span>'}</div>
+                <div class="runs-summary-label" style="margin-top:4px">Recent Trend</div>
+            </div>
+        `;
+
+        if (!runs.length) {
+            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">--</div><div class="empty-state-text">No test runs yet. Run some tests to see results.</div></div>';
             return;
         }
 
-        list.innerHTML = this.testRuns.map(r => {
+        list.innerHTML = runs.map(r => {
             const file = this.testFiles.find(f => f.id === r.fileId);
             const proj = this.projects.find(p => p.id === r.projectId);
             const res = r.results || {};
+            const total = res.total || 0;
+            const title = file ? this.esc(file.filename) : proj ? this.esc(proj.name) : (r.type || 'all') + ' tests';
+
+            // Progress bar
+            let progressHtml = '';
+            if (total > 0) {
+                const pW = Math.round((res.passed / total) * 100);
+                const fW = Math.round((res.failed / total) * 100);
+                const sW = 100 - pW - fW;
+                progressHtml = `
+                    <div class="run-card-progress">
+                        <div class="progress-bar">
+                            ${res.passed ? `<div class="progress-bar-segment passed" style="width:${pW}%"></div>` : ''}
+                            ${res.failed ? `<div class="progress-bar-segment failed" style="width:${fW}%"></div>` : ''}
+                            ${res.skipped ? `<div class="progress-bar-segment skipped" style="width:${sW}%"></div>` : ''}
+                        </div>
+                        <div class="progress-legend">
+                            ${res.passed ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--green)"></span>${res.passed} passed</span>` : ''}
+                            ${res.failed ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--red)"></span>${res.failed} failed</span>` : ''}
+                            ${res.skipped ? `<span class="progress-legend-item"><span class="progress-legend-dot" style="background:var(--text-dim)"></span>${res.skipped} skipped</span>` : ''}
+                        </div>
+                    </div>`;
+            } else if (r.status === 'running') {
+                progressHtml = `<div class="run-card-progress"><div class="progress-bar"><div class="progress-bar-segment running" style="width:100%"></div></div></div>`;
+            }
+
+            // Parse individual test names from output
+            const tests = r.parsedTests || this.parseTestNames(r.outputPreview || '');
+            const testChipsHtml = tests.slice(0, 8).map(t => {
+                const cls = t.status === 'passed' ? 'pass' : t.status === 'failed' ? 'fail' : 'skip';
+                const icon = t.status === 'passed' ? '&#10003;' : t.status === 'failed' ? '&#10005;' : '&#8212;';
+                return `<span class="run-test-chip ${cls}"><span class="run-test-chip-icon">${icon}</span>${this.esc(t.name)}</span>`;
+            }).join('');
+            const moreTests = tests.length > 8 ? `<span class="run-test-chip skip">+${tests.length - 8} more</span>` : '';
+
             return `
-                <div class="list-item" data-run-id="${r.id}">
-                    <div class="list-item-icon">${this.statusLabel(r.status)}</div>
-                    <div class="list-item-body">
-                        <div class="list-item-title">${file ? this.esc(file.filename) : proj ? this.esc(proj.name) : r.type + ' tests'}</div>
-                        <div class="list-item-sub">${res.total > 0 ? `${res.passed} passed · ${res.failed} failed${res.skipped ? ` · ${res.skipped} skipped` : ''}` : r.outputPreview || 'Running...'}</div>
+                <div class="run-card" data-run-id="${r.id}">
+                    <div class="run-card-header">
+                        <div class="run-card-status ${r.status}"></div>
+                        <div class="run-card-title">${title}</div>
+                        <div class="run-card-meta">
+                            <span class="tag tag-${r.status}">${r.status.toUpperCase()}</span>
+                            ${r.duration ? `<span>${(r.duration / 1000).toFixed(1)}s</span>` : ''}
+                            <span>${this.timeAgo(r.startedAt)}</span>
+                        </div>
                     </div>
-                    <div class="list-item-meta">
-                        <span class="tag tag-${r.status}">${r.status}</span>
-                        ${r.duration ? `<span style="color:var(--text-dim);font-size:12px">${(r.duration / 1000).toFixed(1)}s</span>` : ''}
-                        <span style="color:var(--text-dim);font-size:12px">${this.timeAgo(r.startedAt)}</span>
+                    <div class="run-card-body">
+                        ${progressHtml}
+                        ${testChipsHtml ? `<div class="run-card-tests">${testChipsHtml}${moreTests}</div>` : ''}
                     </div>
                 </div>
             `;
         }).join('');
 
-        list.querySelectorAll('.list-item[data-run-id]').forEach(el => {
+        list.querySelectorAll('.run-card[data-run-id]').forEach(el => {
             el.addEventListener('click', () => this.openRunDetail(el.dataset.runId));
         });
+    }
+
+    parseTestNames(output) {
+        if (!output) return [];
+        const tests = [];
+        // Playwright list reporter: "  ✓  1 [api] › auth.spec.js:5:3 › Login › should return token (120ms)"
+        // Also: "  ✓  test name (Xms)" or "  ×  test name (Xms)"
+        const lines = output.split('\n');
+        for (const line of lines) {
+            const pw = line.match(/^\s*[✓✗×·]\s+\d*\s*(?:\[.*?\]\s*›\s*)?(?:.*?›\s*)?(.+?)(?:\s+\(\d+.*?\))?\s*$/);
+            if (pw) {
+                const passed = line.includes('✓');
+                const failed = line.includes('✗') || line.includes('×');
+                tests.push({ name: pw[1].trim(), status: passed ? 'passed' : failed ? 'failed' : 'skipped' });
+                continue;
+            }
+            // Node test runner: "# Subtest: test name" followed by "ok" or "not ok"
+            const nodeTest = line.match(/^(?:ok|not ok)\s+\d+\s+-\s+(.+?)(?:\s+#.*)?$/);
+            if (nodeTest) {
+                tests.push({ name: nodeTest[1].trim(), status: line.startsWith('ok') ? 'passed' : 'failed' });
+            }
+        }
+        return tests;
     }
 
     async runTests(opts) {
@@ -348,6 +456,10 @@ class QADashboard {
                 setTimeout(check, 2000);
             }
             if (this.currentView === 'test-runs') this.renderTestRuns();
+            // Also update detail view if open
+            if (document.getElementById('run-detail').style.display !== 'none' && this._detailRunId === runId) {
+                this.renderRunDetail(run);
+            }
         };
         setTimeout(check, 2000);
     }
@@ -487,27 +599,188 @@ class QADashboard {
     setupRunDetail() {
         document.getElementById('run-detail-close').addEventListener('click', () => {
             document.getElementById('run-detail').style.display = 'none';
+            this._detailRunId = null;
+        });
+
+        document.getElementById('run-detail-rerun').addEventListener('click', async () => {
+            if (!this._detailRun) return;
+            const r = this._detailRun;
+            const opts = {};
+            if (r.fileId) opts.fileId = r.fileId;
+            else if (r.projectId) opts.projectId = r.projectId;
+            else opts.type = r.type;
+            document.getElementById('run-detail').style.display = 'none';
+            await this.runTests(opts);
         });
 
         document.getElementById('run-all-btn').addEventListener('click', () => {
             this.runTests({ type: 'api' });
+        });
+
+        document.getElementById('tr-filter-status').addEventListener('change', () => this.renderTestRuns());
+
+        // Tab switching
+        document.querySelectorAll('.run-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.run-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('run-tab-results').style.display = tab.dataset.tab === 'results' ? 'block' : 'none';
+                document.getElementById('run-tab-output').style.display = tab.dataset.tab === 'output' ? 'block' : 'none';
+            });
         });
     }
 
     async openRunDetail(runId) {
         const run = await this.api('GET', `/api/test-runs/${runId}`);
         if (!run) return;
-        document.getElementById('run-detail-status').innerHTML = `<span class="tag tag-${run.status}">${run.status.toUpperCase()}</span>`;
-        document.getElementById('run-detail-info').textContent = run.command || '';
-        const res = run.results || {};
-        document.getElementById('run-detail-stats').innerHTML = `
-            <div class="run-stat"><div class="run-stat-label">Total</div><div class="run-stat-value">${res.total}</div></div>
-            <div class="run-stat"><div class="run-stat-label">Passed</div><div class="run-stat-value" style="color:var(--green)">${res.passed}</div></div>
-            <div class="run-stat"><div class="run-stat-label">Failed</div><div class="run-stat-value" style="color:var(--red)">${res.failed}</div></div>
-            <div class="run-stat"><div class="run-stat-label">Duration</div><div class="run-stat-value">${run.duration ? (run.duration / 1000).toFixed(1) + 's' : '—'}</div></div>
-        `;
-        document.getElementById('run-output').textContent = run.output || 'No output';
+        this._detailRunId = runId;
+        this._detailRun = run;
+        this.renderRunDetail(run);
         document.getElementById('run-detail').style.display = 'flex';
+        // Reset to results tab
+        document.querySelectorAll('.run-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'results'));
+        document.getElementById('run-tab-results').style.display = 'block';
+        document.getElementById('run-tab-output').style.display = 'none';
+    }
+
+    renderRunDetail(run) {
+        document.getElementById('run-detail-status').innerHTML = `<span class="tag tag-${run.status}">${run.status.toUpperCase()}</span>`;
+        const file = this.testFiles.find(f => f.id === run.fileId);
+        document.getElementById('run-detail-info').textContent = file ? file.filename : (run.command || '');
+
+        const res = run.results || {};
+        const total = res.total || 0;
+        const passRate = total > 0 ? Math.round((res.passed / total) * 100) : 0;
+
+        // Progress bar in stats
+        let progressHtml = '';
+        if (total > 0) {
+            const pW = Math.round((res.passed / total) * 100);
+            const fW = Math.round((res.failed / total) * 100);
+            const sW = 100 - pW - fW;
+            progressHtml = `
+                <div class="run-stat" style="flex:1;min-width:200px">
+                    <div class="run-stat-label">Progress</div>
+                    <div class="progress-bar" style="margin-top:6px">
+                        ${res.passed ? `<div class="progress-bar-segment passed" style="width:${pW}%"></div>` : ''}
+                        ${res.failed ? `<div class="progress-bar-segment failed" style="width:${fW}%"></div>` : ''}
+                        ${res.skipped ? `<div class="progress-bar-segment skipped" style="width:${sW}%"></div>` : ''}
+                    </div>
+                </div>`;
+        }
+
+        document.getElementById('run-detail-stats').innerHTML = `
+            <div class="run-stat"><div class="run-stat-label">Total</div><div class="run-stat-value">${total}</div></div>
+            <div class="run-stat"><div class="run-stat-label">Passed</div><div class="run-stat-value" style="color:var(--green)">${res.passed || 0}</div></div>
+            <div class="run-stat"><div class="run-stat-label">Failed</div><div class="run-stat-value" style="color:var(--red)">${res.failed || 0}</div></div>
+            <div class="run-stat"><div class="run-stat-label">Pass Rate</div><div class="run-stat-value">${passRate}%</div></div>
+            <div class="run-stat"><div class="run-stat-label">Duration</div><div class="run-stat-value">${run.duration ? (run.duration / 1000).toFixed(1) + 's' : '—'}</div></div>
+            ${progressHtml}
+        `;
+
+        // Parse test results from output
+        const tests = this.parseDetailedTests(run.output || '');
+        const resultsList = document.getElementById('test-results-list');
+
+        if (tests.length > 0) {
+            // Group failed first, then passed, then skipped
+            const failed = tests.filter(t => t.status === 'failed');
+            const passed = tests.filter(t => t.status === 'passed');
+            const skipped = tests.filter(t => t.status === 'skipped');
+
+            let html = '';
+            if (failed.length) {
+                html += `<div class="test-result-group"><div class="test-result-group-title">Failed (${failed.length})</div>`;
+                html += failed.map(t => this.renderTestResult(t)).join('');
+                html += '</div>';
+            }
+            if (passed.length) {
+                html += `<div class="test-result-group"><div class="test-result-group-title">Passed (${passed.length})</div>`;
+                html += passed.map(t => this.renderTestResult(t)).join('');
+                html += '</div>';
+            }
+            if (skipped.length) {
+                html += `<div class="test-result-group"><div class="test-result-group-title">Skipped (${skipped.length})</div>`;
+                html += skipped.map(t => this.renderTestResult(t)).join('');
+                html += '</div>';
+            }
+            resultsList.innerHTML = html;
+        } else if (run.status === 'running') {
+            resultsList.innerHTML = '<div class="empty-state"><div class="empty-state-text">Tests are running...</div></div>';
+        } else {
+            resultsList.innerHTML = '<div class="empty-state"><div class="empty-state-text">No individual test results parsed. Check the Output tab.</div></div>';
+        }
+
+        // Format output with color
+        document.getElementById('run-output').innerHTML = this.formatRunOutput(run.output || 'No output');
+    }
+
+    renderTestResult(t) {
+        const cls = t.status === 'passed' ? 'pass' : t.status === 'failed' ? 'fail' : 'skip';
+        const icon = t.status === 'passed' ? '&#10003;' : t.status === 'failed' ? '&#10005;' : '&#8212;';
+        let html = `
+            <div class="test-result-item">
+                <div class="test-result-icon ${cls}">${icon}</div>
+                <div class="test-result-name">${this.esc(t.name)}</div>
+                ${t.duration ? `<div class="test-result-duration">${t.duration}</div>` : ''}
+            </div>`;
+        if (t.error) {
+            html += `<div class="test-result-error">${this.esc(t.error)}</div>`;
+        }
+        return html;
+    }
+
+    parseDetailedTests(output) {
+        if (!output) return [];
+        const tests = [];
+        const lines = output.split('\n');
+
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+
+            // Playwright: "  ✓  1 [chromium] › file.spec.js:5:3 › Suite › test name (120ms)"
+            const pw = line.match(/^\s*([✓✗×·])\s+\d*\s*(.+?)(?:\s+\((\d+.*?)\))?\s*$/);
+            if (pw) {
+                const status = pw[1] === '✓' ? 'passed' : (pw[1] === '✗' || pw[1] === '×') ? 'failed' : 'skipped';
+                const name = pw[2].replace(/^\[.*?\]\s*›\s*/, '').replace(/^.*?›\s*/, '').trim() || pw[2].trim();
+                let error = '';
+                if (status === 'failed') {
+                    // Collect error lines following
+                    let j = i + 1;
+                    const errLines = [];
+                    while (j < lines.length && (lines[j].match(/^\s{4,}/) || lines[j].trim() === '')) {
+                        if (lines[j].trim()) errLines.push(lines[j].trimStart());
+                        j++;
+                    }
+                    error = errLines.join('\n').trim();
+                }
+                tests.push({ name, status, duration: pw[3] || '', error });
+                continue;
+            }
+
+            // Node test runner: "ok 1 - test name" / "not ok 2 - test name"
+            const node = line.match(/^(ok|not ok)\s+\d+\s+-\s+(.+?)(?:\s+#\s*(.*))?$/);
+            if (node) {
+                tests.push({
+                    name: node[2].trim(),
+                    status: node[1] === 'ok' ? 'passed' : 'failed',
+                    duration: node[3] || '',
+                    error: ''
+                });
+            }
+        }
+        return tests;
+    }
+
+    formatRunOutput(output) {
+        let html = this.escHtml(output);
+        // Colorize pass/fail patterns
+        html = html.replace(/^(\s*✓\s+.*)$/gm, '<span class="out-pass">$1</span>');
+        html = html.replace(/^(\s*[✗×]\s+.*)$/gm, '<span class="out-fail">$1</span>');
+        html = html.replace(/(\d+ passed)/g, '<span class="out-pass">$1</span>');
+        html = html.replace(/(\d+ failed)/g, '<span class="out-fail">$1</span>');
+        html = html.replace(/^(Running .*)$/gm, '<span class="out-info">$1</span>');
+        return html;
     }
 
     // ── Modals ──

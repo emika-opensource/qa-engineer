@@ -102,9 +102,17 @@
                 <div class="view-header">
                     <h2>Test Runs</h2>
                     <div class="header-actions">
+                        <select class="filter-select" id="tr-filter-status">
+                            <option value="">All Statuses</option>
+                            <option value="passed">Passed</option>
+                            <option value="failed">Failed</option>
+                            <option value="running">Running</option>
+                            <option value="error">Error</option>
+                        </select>
                         <button class="btn btn-accent" id="run-all-btn">Run All Tests</button>
                     </div>
                 </div>
+                <div class="runs-summary" id="runs-summary"></div>
                 <div class="content-list" id="test-runs-list"></div>
             </div>
 
@@ -137,10 +145,22 @@
                         <span id="run-detail-status"></span>
                         <span id="run-detail-info"></span>
                     </div>
-                    <button class="btn btn-secondary btn-sm" id="run-detail-close">Close</button>
+                    <div class="run-detail-actions">
+                        <button class="btn btn-ghost btn-sm" id="run-detail-rerun">Rerun</button>
+                        <button class="btn btn-secondary btn-sm" id="run-detail-close">Close</button>
+                    </div>
                 </div>
                 <div class="run-detail-stats" id="run-detail-stats"></div>
-                <pre class="run-output" id="run-output"></pre>
+                <div class="run-detail-tabs">
+                    <button class="run-tab active" data-tab="results">Results</button>
+                    <button class="run-tab" data-tab="output">Output</button>
+                </div>
+                <div class="run-tab-content" id="run-tab-results">
+                    <div class="test-results-list" id="test-results-list"></div>
+                </div>
+                <div class="run-tab-content" id="run-tab-output" style="display:none">
+                    <pre class="run-output" id="run-output"></pre>
+                </div>
             </div>
         </main>
     </div>
