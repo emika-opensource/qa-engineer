@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">🧪 QA Dashboard</h1>
+            </div>
+            <div class="sidebar-nav">
+                <button class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" data-view="projects">
+                    <span class="nav-icon">📁</span>
+                    <span>Projects</span>
+                </button>
+                <button class="nav-item" data-view="test-cases">
+                    <span class="nav-icon">📋</span>
+                    <span>Test Cases</span>
+                </button>
+                <button class="nav-item" data-view="test-files">
+                    <span class="nav-icon">💻</span>
+                    <span>Test Files</span>
+                </button>
+                <button class="nav-item" data-view="test-runs">
+                    <span class="nav-icon">▶️</span>
+                    <span>Test Runs</span>
+                </button>
+            </div>
+            <div class="sidebar-footer">
+                <div class="sidebar-stats" id="sidebar-stats"></div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <div class="view active" id="view-dashboard">
+                <div class="view-header">
+                    <h2>Dashboard</h2>
+                </div>
+                <div class="dashboard-grid" id="dashboard-grid"></div>
+            </div>
+
+            <!-- Projects View -->
+            <div class="view" id="view-projects">
+                <div class="view-header">
+                    <h2>Projects</h2>
+                    <button class="btn btn-primary" id="add-project-btn">+ New Project</button>
+                </div>
+                <div class="content-list" id="projects-list"></div>
+            </div>
+
+            <!-- Test Cases View -->
+            <div class="view" id="view-test-cases">
+                <div class="view-header">
+                    <h2>Test Cases</h2>
+                    <div class="header-actions">
+                        <select class="filter-select" id="tc-filter-project"><option value="">All Projects</option></select>
+                        <select class="filter-select" id="tc-filter-type">
+                            <option value="">All Types</option>
+                            <option value="api">API</option>
+                            <option value="ui">UI</option>
+                            <option value="unit">Unit</option>
+                        </select>
+                        <button class="btn btn-primary" id="add-test-case-btn">+ New Test Case</button>
+                    </div>
+                </div>
+                <div class="content-list" id="test-cases-list"></div>
+            </div>
+
+            <!-- Test Files View -->
+            <div class="view" id="view-test-files">
+                <div class="view-header">
+                    <h2>Test Files</h2>
+                    <div class="header-actions">
+                        <select class="filter-select" id="tf-filter-type">
+                            <option value="">All Types</option>
+                            <option value="api">API</option>
+                            <option value="ui">UI</option>
+                            <option value="unit">Unit</option>
+                        </select>
+                        <button class="btn btn-primary" id="add-test-file-btn">+ New Test File</button>
+                    </div>
+                </div>
+                <div class="content-list" id="test-files-list"></div>
+            </div>
+
+            <!-- Test Runs View -->
+            <div class="view" id="view-test-runs">
+                <div class="view-header">
+                    <h2>Test Runs</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-accent" id="run-all-btn">▶ Run All Tests</button>
+                    </div>
+                </div>
+                <div class="content-list" id="test-runs-list"></div>
+            </div>
+
+            <!-- Code Viewer (overlay) -->
+            <div class="code-viewer" id="code-viewer" style="display:none">
+                <div class="code-viewer-header">
+                    <div class="code-viewer-title">
+                        <span id="code-viewer-filename"></span>
+                        <span class="code-viewer-type" id="code-viewer-type"></span>
+                    </div>
+                    <div class="code-viewer-actions">
+                        <button class="btn btn-accent btn-sm" id="code-run-btn">▶ Run</button>
+                        <button class="btn btn-primary btn-sm" id="code-save-btn">Save</button>
+                        <button class="btn btn-secondary btn-sm" id="code-close-btn">✕ Close</button>
+                    </div>
+                </div>
+                <div class="code-editor-wrap">
+                    <div class="line-numbers" id="line-numbers"></div>
+                    <textarea class="code-editor" id="code-editor" spellcheck="false"></textarea>
+                </div>
+            </div>
+
+            <!-- Test Run Detail (overlay) -->
+            <div class="run-detail" id="run-detail" style="display:none">
+                <div class="run-detail-header">
+                    <div class="run-detail-title">
+                        <span id="run-detail-status"></span>
+                        <span id="run-detail-info"></span>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" id="run-detail-close">✕ Close</button>
+                </div>
+                <div class="run-detail-stats" id="run-detail-stats"></div>
+                <pre class="run-output" id="run-output"></pre>
+            </div>
+        </main>
+    </div>
+
+    <!-- Project Modal -->
+    <div class="modal" id="project-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="project-modal-title">New Project</h3>
+                <button class="modal-close" id="project-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Project Name</label>
+                    <input type="text" id="project-name" placeholder="e.g., Emika API Tests">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="project-desc" rows="2" placeholder="What are you testing?"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Base URL</label>
+                    <input type="text" id="project-url" placeholder="e.g., https://api.emika.ai">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type</label>
+                    <div class="type-picker" id="project-type-picker">
+                        <button type="button" class="type-option" data-value="api">🔌 API</button>
+                        <button type="button" class="type-option" data-value="ui">🖥️ UI</button>
+                        <button type="button" class="type-option" data-value="unit">⚙️ Unit</button>
+                        <button type="button" class="type-option selected" data-value="mixed">🔀 Mixed</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="project-cancel">Cancel</button>
+                <button class="btn btn-primary" id="project-save">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test Case Modal -->
+    <div class="modal" id="tc-modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3 id="tc-modal-title">New Test Case</h3>
+                <button class="modal-close" id="tc-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <input type="text" id="tc-title" placeholder="e.g., Login with valid credentials returns 200">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="tc-desc" rows="2" placeholder="What does this test verify?"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Project</label>
+                        <select id="tc-project"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select id="tc-type">
+                            <option value="api">API</option>
+                            <option value="ui">UI</option>
+                            <option value="unit">Unit</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Priority</label>
+                    <div class="priority-picker" id="tc-priority-picker">
+                        <button type="button" class="priority-option" data-value="low"><span class="pri-dot low"></span>Low</button>
+                        <button type="button" class="priority-option selected" data-value="medium"><span class="pri-dot medium"></span>Medium</button>
+                        <button type="button" class="priority-option" data-value="high"><span class="pri-dot high"></span>High</button>
+                        <button type="button" class="priority-option" data-value="critical"><span class="pri-dot critical"></span>Critical</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Steps</label>
+                    <textarea id="tc-steps" rows="4" placeholder="1. Send POST /users/login with valid credentials&#10;2. Verify response status is 200&#10;3. Verify response body contains token"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Expected Result</label>
+                    <textarea id="tc-expected" rows="2" placeholder="User receives a valid JWT token"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="tc-cancel">Cancel</button>
+                <button class="btn btn-danger" id="tc-delete" style="display:none">Delete</button>
+                <button class="btn btn-primary" id="tc-save">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Test File Modal -->
+    <div class="modal" id="tf-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="tf-modal-title">New Test File</h3>
+                <button class="modal-close" id="tf-modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Filename</label>
+                    <input type="text" id="tf-filename" placeholder="e.g., auth.spec.js">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea id="tf-desc" rows="2" placeholder="What tests does this file contain?"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Project</label>
+                        <select id="tf-project"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Type</label>
+                        <select id="tf-type">
+                            <option value="api">API</option>
+                            <option value="ui">UI</option>
+                            <option value="unit">Unit</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="tf-cancel">Cancel</button>
+                <button class="btn btn-primary" id="tf-save">Create & Open Editor</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
