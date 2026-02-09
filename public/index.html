@@ -6,7 +6,7 @@
     <title>QA Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,27 +14,27 @@
         <!-- Sidebar -->
         <nav class="sidebar">
             <div class="sidebar-header">
-                <h1 class="logo">🧪 QA Dashboard</h1>
+                <h1 class="logo">QA Dashboard</h1>
             </div>
             <div class="sidebar-nav">
                 <button class="nav-item active" data-view="dashboard">
-                    <span class="nav-icon">📊</span>
+                    <span class="nav-icon">D</span>
                     <span>Dashboard</span>
                 </button>
                 <button class="nav-item" data-view="projects">
-                    <span class="nav-icon">📁</span>
+                    <span class="nav-icon">P</span>
                     <span>Projects</span>
                 </button>
                 <button class="nav-item" data-view="test-cases">
-                    <span class="nav-icon">📋</span>
+                    <span class="nav-icon">C</span>
                     <span>Test Cases</span>
                 </button>
                 <button class="nav-item" data-view="test-files">
-                    <span class="nav-icon">💻</span>
+                    <span class="nav-icon">F</span>
                     <span>Test Files</span>
                 </button>
                 <button class="nav-item" data-view="test-runs">
-                    <span class="nav-icon">▶️</span>
+                    <span class="nav-icon">R</span>
                     <span>Test Runs</span>
                 </button>
             </div>
@@ -102,7 +102,7 @@
                 <div class="view-header">
                     <h2>Test Runs</h2>
                     <div class="header-actions">
-                        <button class="btn btn-accent" id="run-all-btn">▶ Run All Tests</button>
+                        <button class="btn btn-accent" id="run-all-btn">Run All Tests</button>
                     </div>
                 </div>
                 <div class="content-list" id="test-runs-list"></div>
@@ -116,14 +116,17 @@
                         <span class="code-viewer-type" id="code-viewer-type"></span>
                     </div>
                     <div class="code-viewer-actions">
-                        <button class="btn btn-accent btn-sm" id="code-run-btn">▶ Run</button>
+                        <button class="btn btn-accent btn-sm" id="code-run-btn">Run</button>
                         <button class="btn btn-primary btn-sm" id="code-save-btn">Save</button>
-                        <button class="btn btn-secondary btn-sm" id="code-close-btn">✕ Close</button>
+                        <button class="btn btn-secondary btn-sm" id="code-close-btn">Close</button>
                     </div>
                 </div>
                 <div class="code-editor-wrap">
                     <div class="line-numbers" id="line-numbers"></div>
-                    <textarea class="code-editor" id="code-editor" spellcheck="false"></textarea>
+                    <div class="code-editor-container">
+                        <pre class="code-highlight" id="code-highlight"><code></code></pre>
+                        <textarea class="code-editor" id="code-editor" spellcheck="false"></textarea>
+                    </div>
                 </div>
             </div>
 
@@ -134,7 +137,7 @@
                         <span id="run-detail-status"></span>
                         <span id="run-detail-info"></span>
                     </div>
-                    <button class="btn btn-secondary btn-sm" id="run-detail-close">✕ Close</button>
+                    <button class="btn btn-secondary btn-sm" id="run-detail-close">Close</button>
                 </div>
                 <div class="run-detail-stats" id="run-detail-stats"></div>
                 <pre class="run-output" id="run-output"></pre>
@@ -165,10 +168,10 @@
                 <div class="form-group">
                     <label class="form-label">Type</label>
                     <div class="type-picker" id="project-type-picker">
-                        <button type="button" class="type-option" data-value="api">🔌 API</button>
-                        <button type="button" class="type-option" data-value="ui">🖥️ UI</button>
-                        <button type="button" class="type-option" data-value="unit">⚙️ Unit</button>
-                        <button type="button" class="type-option selected" data-value="mixed">🔀 Mixed</button>
+                        <button type="button" class="type-option" data-value="api">API</button>
+                        <button type="button" class="type-option" data-value="ui">UI</button>
+                        <button type="button" class="type-option" data-value="unit">Unit</button>
+                        <button type="button" class="type-option selected" data-value="mixed">Mixed</button>
                     </div>
                 </div>
             </div>

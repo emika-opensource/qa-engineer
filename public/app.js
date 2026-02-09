@@ -109,7 +109,7 @@ class QADashboard {
             </div>
             <div class="stat-card ${lastRun?.status === 'passed' ? 'green' : lastRun?.status === 'failed' ? 'red' : ''}">
                 <div class="stat-card-label">Last Run</div>
-                <div class="stat-card-value">${lastRun ? this.statusIcon(lastRun.status) : '—'}</div>
+                <div class="stat-card-value">${lastRun ? this.statusLabel(lastRun.status) : '—'}</div>
                 <div class="stat-card-sub">${lastRun ? this.timeAgo(lastRun.completedAt || lastRun.startedAt) + (lastRun.duration ? ` · ${(lastRun.duration / 1000).toFixed(1)}s` : '') : 'No runs yet'}</div>
             </div>
             <div class="stat-card">
@@ -136,7 +136,7 @@ class QADashboard {
     renderProjects() {
         const list = document.getElementById('projects-list');
         if (!this.projects.length) {
-            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📁</div><div class="empty-state-text">No projects yet. Create one to get started.</div></div>';
+            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">—</div><div class="empty-state-text">No projects yet. Create one to get started.</div></div>';
             return;
         }
         list.innerHTML = this.projects.map(p => {
@@ -146,7 +146,7 @@ class QADashboard {
             const lastRun = runs[0];
             return `
                 <div class="list-item" data-project-id="${p.id}">
-                    <div class="list-item-icon">${this.typeIcon(p.type)}</div>
+                    <div class="list-item-icon">${this.typeLabel(p.type)}</div>
                     <div class="list-item-body">
                         <div class="list-item-title">${this.esc(p.name)}</div>
                         <div class="list-item-sub">${this.esc(p.description || p.baseUrl || 'No description')}</div>
@@ -157,8 +157,8 @@ class QADashboard {
                         ${lastRun ? `<span class="tag tag-${lastRun.status}">${lastRun.status}</span>` : ''}
                     </div>
                     <div class="list-item-actions">
-                        <button class="btn btn-accent btn-sm run-project-btn" data-id="${p.id}" title="Run all tests">▶</button>
-                        <button class="btn btn-danger btn-sm delete-project-btn" data-id="${p.id}" title="Delete">✕</button>
+                        <button class="btn btn-accent btn-sm run-project-btn" data-id="${p.id}" title="Run all tests">Run</button>
+                        <button class="btn btn-danger btn-sm delete-project-btn" data-id="${p.id}" title="Delete">Del</button>
                     </div>
                 </div>
             `;
@@ -194,7 +194,7 @@ class QADashboard {
         if (filterType) cases = cases.filter(c => c.type === filterType);
 
         if (!cases.length) {
-            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><div class="empty-state-text">No test cases yet.</div></div>';
+            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">—</div><div class="empty-state-text">No test cases yet.</div></div>';
             return;
         }
 
@@ -205,7 +205,7 @@ class QADashboard {
                     <div class="list-item-icon"><span class="pri-dot ${tc.priority}"></span></div>
                     <div class="list-item-body">
                         <div class="list-item-title">${this.esc(tc.title)}</div>
-                        <div class="list-item-sub">${proj ? this.esc(proj.name) + ' · ' : ''}${tc.steps?.length || 0} steps${tc.automated ? ' · ✅ Automated' : ''}</div>
+                        <div class="list-item-sub">${proj ? this.esc(proj.name) + ' · ' : ''}${tc.steps?.length || 0} steps${tc.automated ? ' · Automated' : ''}</div>
                     </div>
                     <div class="list-item-meta">
                         <span class="tag tag-${tc.type}">${tc.type.toUpperCase()}</span>
@@ -214,7 +214,7 @@ class QADashboard {
                     </div>
                     <div class="list-item-actions">
                         <button class="btn btn-ghost btn-sm edit-tc-btn" data-id="${tc.id}">Edit</button>
-                        <button class="btn btn-danger btn-sm delete-tc-btn" data-id="${tc.id}">✕</button>
+                        <button class="btn btn-danger btn-sm delete-tc-btn" data-id="${tc.id}">Del</button>
                     </div>
                 </div>
             `;
@@ -247,7 +247,7 @@ class QADashboard {
         if (filterType) files = files.filter(f => f.type === filterType);
 
         if (!files.length) {
-            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">💻</div><div class="empty-state-text">No test files yet.</div></div>';
+            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">—</div><div class="empty-state-text">No test files yet.</div></div>';
             return;
         }
 
@@ -255,7 +255,7 @@ class QADashboard {
             const proj = this.projects.find(p => p.id === f.projectId);
             return `
                 <div class="list-item" data-file-id="${f.id}">
-                    <div class="list-item-icon">📄</div>
+                    <div class="list-item-icon">JS</div>
                     <div class="list-item-body">
                         <div class="list-item-title">${this.esc(f.filename)}</div>
                         <div class="list-item-sub">${proj ? this.esc(proj.name) + ' · ' : ''}${this.esc(f.description || f.contentPreview || '')}</div>
@@ -265,8 +265,8 @@ class QADashboard {
                     </div>
                     <div class="list-item-actions">
                         <button class="btn btn-ghost btn-sm open-file-btn" data-id="${f.id}">Open</button>
-                        <button class="btn btn-accent btn-sm run-file-btn" data-id="${f.id}">▶</button>
-                        <button class="btn btn-danger btn-sm delete-file-btn" data-id="${f.id}">✕</button>
+                        <button class="btn btn-accent btn-sm run-file-btn" data-id="${f.id}">Run</button>
+                        <button class="btn btn-danger btn-sm delete-file-btn" data-id="${f.id}">Del</button>
                     </div>
                 </div>
             `;
@@ -303,7 +303,7 @@ class QADashboard {
     renderTestRuns() {
         const list = document.getElementById('test-runs-list');
         if (!this.testRuns.length) {
-            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">▶️</div><div class="empty-state-text">No test runs yet. Run some tests to see results.</div></div>';
+            list.innerHTML = '<div class="empty-state"><div class="empty-state-icon">—</div><div class="empty-state-text">No test runs yet. Run some tests to see results.</div></div>';
             return;
         }
 
@@ -313,7 +313,7 @@ class QADashboard {
             const res = r.results || {};
             return `
                 <div class="list-item" data-run-id="${r.id}">
-                    <div class="list-item-icon">${this.statusIcon(r.status)}</div>
+                    <div class="list-item-icon">${this.statusLabel(r.status)}</div>
                     <div class="list-item-body">
                         <div class="list-item-title">${file ? this.esc(file.filename) : proj ? this.esc(proj.name) : r.type + ' tests'}</div>
                         <div class="list-item-sub">${res.total > 0 ? `${res.passed} passed · ${res.failed} failed${res.skipped ? ` · ${res.skipped} skipped` : ''}` : r.outputPreview || 'Running...'}</div>
@@ -336,7 +336,6 @@ class QADashboard {
         const run = await this.api('POST', '/api/test-runs', opts);
         if (run) {
             this.switchView('test-runs');
-            // Poll for completion
             this.pollRun(run.id);
         }
     }
@@ -353,6 +352,68 @@ class QADashboard {
         setTimeout(check, 2000);
     }
 
+    // ── Syntax Highlighting ──
+
+    highlightCode(code) {
+        // Escape HTML first
+        let escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+        // Tokenize with regex - order matters
+        const tokens = [];
+        const regex = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)\b|\b\d+(?:\.\d+)?\b|\w+(?=\s*\()|(?<=\.)\w+/g;
+
+        let result = '';
+        let lastIndex = 0;
+
+        // Work on the escaped string for matching, but we need to match on original
+        // Actually, let's tokenize on original code, then build escaped result
+        const raw = code;
+        const rawRegex = /\/\/[^\n]*|\/\*[\s\S]*?\*\/|`(?:[^`\\]|\\.)*`|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)\b|\b\d+(?:\.\d+)?\b|\w+(?=\s*\()|(?<=\.)\w+/g;
+
+        let match;
+        result = '';
+        lastIndex = 0;
+
+        while ((match = rawRegex.exec(raw)) !== null) {
+            // Add unhighlighted text before this match
+            if (match.index > lastIndex) {
+                result += this.escHtml(raw.substring(lastIndex, match.index));
+            }
+
+            const text = match[0];
+            const escapedText = this.escHtml(text);
+            let cls = '';
+
+            if (text.startsWith('//') || text.startsWith('/*')) {
+                cls = 'sh-comment';
+            } else if (text.startsWith('"') || text.startsWith("'") || text.startsWith('`')) {
+                cls = 'sh-string';
+            } else if (/^(?:const|let|var|function|async|await|return|if|else|for|while|import|from|export|class|new|try|catch|throw|typeof|instanceof|switch|case|break|default|continue|do|in|of|yield|delete|void|with|debugger|super|extends|static|get|set)$/.test(text)) {
+                cls = 'sh-keyword';
+            } else if (/^\d+(?:\.\d+)?$/.test(text)) {
+                cls = 'sh-number';
+            } else if (match.index > 0 && raw[match.index - 1] === '.') {
+                cls = 'sh-property';
+            } else {
+                cls = 'sh-function';
+            }
+
+            result += `<span class="${cls}">${escapedText}</span>`;
+            lastIndex = match.index + text.length;
+        }
+
+        // Add remaining text
+        if (lastIndex < raw.length) {
+            result += this.escHtml(raw.substring(lastIndex));
+        }
+
+        return result;
+    }
+
+    escHtml(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
     // ── Code Viewer ──
 
     setupCodeViewer() {
@@ -367,9 +428,15 @@ class QADashboard {
         });
 
         const editor = document.getElementById('code-editor');
-        editor.addEventListener('input', () => this.updateLineNumbers());
+        const container = document.querySelector('.code-editor-container');
+
+        editor.addEventListener('input', () => this.updateEditor());
         editor.addEventListener('scroll', () => {
-            document.getElementById('line-numbers').scrollTop = editor.scrollTop;
+            const highlight = document.getElementById('code-highlight');
+            const lineNums = document.getElementById('line-numbers');
+            highlight.scrollTop = editor.scrollTop;
+            highlight.scrollLeft = editor.scrollLeft;
+            lineNums.scrollTop = editor.scrollTop;
         });
         editor.addEventListener('keydown', (e) => {
             if (e.key === 'Tab') {
@@ -377,6 +444,7 @@ class QADashboard {
                 const start = editor.selectionStart;
                 editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(editor.selectionEnd);
                 editor.selectionStart = editor.selectionEnd = start + 2;
+                this.updateEditor();
             }
             if (e.key === 's' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -393,14 +461,19 @@ class QADashboard {
         document.getElementById('code-viewer-type').textContent = file.type.toUpperCase();
         document.getElementById('code-editor').value = file.content || '';
         document.getElementById('code-viewer').style.display = 'flex';
-        this.updateLineNumbers();
+        this.updateEditor();
     }
 
-    updateLineNumbers() {
+    updateEditor() {
         const editor = document.getElementById('code-editor');
-        const lines = editor.value.split('\n').length;
+        const code = editor.value;
+        const lines = code.split('\n').length;
         const nums = document.getElementById('line-numbers');
         nums.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+
+        // Update syntax highlighting
+        const highlight = document.getElementById('code-highlight');
+        highlight.querySelector('code').innerHTML = this.highlightCode(code) + '\n';
     }
 
     async saveCodeFile() {
@@ -590,7 +663,6 @@ class QADashboard {
         const type = document.getElementById('tf-type').value;
         const projectId = document.getElementById('tf-project').value || null;
 
-        // Generate template content
         let content;
         if (type === 'unit') {
             content = `const { describe, it } = require('node:test');\nconst assert = require('node:assert');\n\ndescribe('${filename.replace(/\.[^.]+$/, '')}', () => {\n  it('should work', () => {\n    assert.strictEqual(1 + 1, 2);\n  });\n});\n`;
@@ -631,12 +703,12 @@ class QADashboard {
 
     esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-    typeIcon(type) {
-        return { api: '🔌', ui: '🖥️', unit: '⚙️', mixed: '🔀' }[type] || '📁';
+    typeLabel(type) {
+        return { api: 'API', ui: 'UI', unit: 'UT', mixed: 'MX' }[type] || '—';
     }
 
-    statusIcon(status) {
-        return { passed: '✅', failed: '❌', running: '🔄', error: '⚠️' }[status] || '—';
+    statusLabel(status) {
+        return { passed: 'PASS', failed: 'FAIL', running: 'RUN', error: 'ERR' }[status] || '—';
     }
 
     timeAgo(dateStr) {
