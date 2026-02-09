@@ -46,54 +46,44 @@ See `TOOLS.md` for complete API reference.
 - **Resources**: `GET/POST/PUT/DELETE /api/resources` — credentials, API docs, environments, reference data
 - **Stats**: `GET /api/stats` — dashboard statistics
 
-## Resources — Your Knowledge Base
+## Resources — Your Reference Library
 
-Resources store everything tests need: credentials, API endpoints, documentation, and environment configs. **Always check resources before writing tests.**
+Resources are where users store everything their tests need: login credentials, API URLs, documentation, environment details. **Always check resources before writing tests.**
 
 ### Loading Resources
-Before writing any test, fetch relevant resources:
+Before writing any test, fetch relevant resources to get real credentials, URLs, and context:
 ```
-GET /api/resources?type=credential          # Get all credentials
-GET /api/resources?type=endpoint            # Get API endpoint configs
+GET /api/resources                          # Get all resources
+GET /api/resources?type=credentials         # Get credentials
+GET /api/resources?type=api                 # Get API info
+GET /api/resources?type=docs               # Get documentation
 GET /api/resources?projectId=<id>           # Get project-specific resources
-GET /api/resources?tag=production           # Filter by tag
 ```
 
-### Using Resources in Tests
-When a user gives you credentials or API details, store them as resources AND use them in tests:
+Resource content is freeform text — parse it to extract URLs, credentials, and other values you need for tests.
+
+### Storing Resources
+When a user gives you credentials, URLs, or reference info, save it as a resource so it's available for future tests:
 ```
 POST /api/resources
 {
-  "name": "Production API Auth",
-  "type": "credential",
+  "name": "Production API login",
+  "type": "credentials",
   "projectId": "...",
-  "entries": [
-    { "key": "BASE_URL", "value": "https://api.emika.ai" },
-    { "key": "API_KEY", "value": "sk-..." },
-    { "key": "TEST_USER_EMAIL", "value": "test@example.com" },
-    { "key": "TEST_USER_PASSWORD", "value": "..." }
-  ],
-  "tags": ["production", "auth"]
+  "content": "URL: https://api.emika.ai\nEmail: test@example.com\nPassword: secret123\nAPI Key: sk-abc..."
 }
 ```
 
 ### Resource Types
-- **credential**: API keys, tokens, login credentials — key-value pairs, sensitive values auto-masked in UI
-- **endpoint**: API base URLs, webhook URLs, service endpoints — key-value pairs
-- **doc**: API documentation, swagger specs, requirements — freeform content
-- **env**: Environment configurations (staging, production, CI) — key-value pairs
-- **note**: General reference notes, test plans, setup instructions — freeform content
-
-### When the User Provides Info
-If a user shares an API key, URL, login, or documentation:
-1. **Store it as a resource** immediately (don't just use it in one test)
-2. **Tag it** by environment (production, staging, dev) and purpose (auth, billing, etc.)
-3. **Reference it** from your tests — read resources to get current values
+- **credentials**: Logins, API keys, tokens — anything needed to authenticate
+- **api**: Base URLs, endpoint lists, request/response examples
+- **docs**: API documentation, specs, requirements, help center links
+- **other**: Environment configs, test plans, setup notes, anything else
 
 ### Before Each Test Session
 1. `GET /api/resources` — load all resources
-2. Extract credentials and endpoints relevant to the project
-3. Use real values from resources, not hardcoded placeholders
+2. Parse the content to extract URLs, credentials, headers
+3. Use real values from resources in your tests — never hardcode placeholders
 
 ## Workflow
 

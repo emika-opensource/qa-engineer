@@ -121,7 +121,7 @@ class QADashboard {
             <div class="stat-card">
                 <div class="stat-card-label">Resources</div>
                 <div class="stat-card-value">${this.resources.length}</div>
-                <div class="stat-card-sub">${this.resources.filter(r => r.type === 'credential').length} creds · ${this.resources.filter(r => r.type === 'endpoint').length} endpoints · ${this.resources.filter(r => r.type === 'doc').length} docs</div>
+                <div class="stat-card-sub">${this.resources.filter(r => r.type === 'credentials').length} credentials · ${this.resources.filter(r => r.type === 'api').length} API · ${this.resources.filter(r => r.type === 'docs').length} docs</div>
             </div>
         `;
     }
@@ -539,44 +539,36 @@ class QADashboard {
         if (filterType) resources = resources.filter(r => r.type === filterType);
 
         if (!resources.length) {
-            list.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-state-icon">—</div><div class="empty-state-text">No resources yet. Add credentials, API endpoints, or documentation for your tests.</div></div>';
+            list.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+                <div class="empty-state-icon">—</div>
+                <div class="empty-state-text">No resources yet. Add test credentials, API docs, or any reference info your tests need.</div>
+            </div>`;
             return;
         }
 
         const icons = {
-            credential: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="8" width="14" height="8" rx="2"/><path d="M6 8V5a4 4 0 018 0v3"/><circle cx="10" cy="12" r="1.5"/></svg>',
-            endpoint: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3a11 11 0 014 7 11 11 0 01-4 7 11 11 0 01-4-7 11 11 0 014-7z"/></svg>',
-            doc: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3h7l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M12 3v4h4"/></svg>',
-            env: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l6-3 6 3v4c0 4-3 7-6 8-3-1-6-4-6-8z"/></svg>',
-            note: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M7 7h6M7 10h6M7 13h3"/></svg>'
+            credentials: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="8" width="14" height="8" rx="2"/><path d="M6 8V5a4 4 0 018 0v3"/><circle cx="10" cy="12" r="1.5"/></svg>',
+            api: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M3 10h14M10 3a11 11 0 014 7 11 11 0 01-4 7 11 11 0 01-4-7 11 11 0 014-7z"/></svg>',
+            docs: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3h7l4 4v8a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/><path d="M12 3v4h4"/></svg>',
+            other: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3h12a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V4a1 1 0 011-1z"/><path d="M7 7h6M7 10h6M7 13h3"/></svg>'
         };
+
+        const typeLabels = { credentials: 'Credentials', api: 'API Info', docs: 'Docs', other: 'Other' };
 
         list.innerHTML = resources.map(r => {
             const proj = this.projects.find(p => p.id === r.projectId);
-            let bodyHtml = '';
-            if (r.entries && r.entries.length > 0) {
-                bodyHtml = '<div class="resource-kv">' + r.entries.slice(0, 4).map(e => {
-                    const masked = r.type === 'credential' && e.key.toLowerCase().includes('key') || e.key.toLowerCase().includes('secret') || e.key.toLowerCase().includes('password') || e.key.toLowerCase().includes('token');
-                    const val = masked ? '••••••••' : this.esc(e.value);
-                    const valCls = masked ? 'resource-kv-val masked' : 'resource-kv-val';
-                    return `<div class="resource-kv-row"><span class="resource-kv-key">${this.esc(e.key)}</span><span class="${valCls}">${val}</span></div>`;
-                }).join('') + (r.entries.length > 4 ? `<div style="font-size:11px;color:var(--text-dim);margin-top:2px">+${r.entries.length - 4} more</div>` : '') + '</div>';
-            } else if (r.content) {
-                bodyHtml = `<div style="font-size:12px;color:var(--text-muted);line-height:1.5;max-height:80px;overflow:hidden">${this.esc(r.content).slice(0, 200)}${r.content.length > 200 ? '...' : ''}</div>`;
-            }
-
-            const tagsHtml = (r.tags || []).map(t => `<span class="resource-tag">${this.esc(t)}</span>`).join('');
+            const contentText = this.esc(r.content || '');
+            const isTruncated = contentText.length > 200;
 
             return `
                 <div class="resource-card" data-res-id="${r.id}">
                     <div class="resource-card-header">
-                        <div class="resource-card-icon ${r.type}">${icons[r.type] || icons.note}</div>
+                        <div class="resource-card-icon ${r.type}">${icons[r.type] || icons.other}</div>
                         <div class="resource-card-name">${this.esc(r.name)}</div>
-                        <span class="tag tag-${r.type}">${r.type}</span>
+                        <span class="tag tag-${r.type}">${typeLabels[r.type] || r.type}</span>
                     </div>
-                    ${proj ? `<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">${this.esc(proj.name)}</div>` : ''}
-                    <div class="resource-card-body">${bodyHtml}</div>
-                    ${tagsHtml ? `<div class="resource-card-tags">${tagsHtml}</div>` : ''}
+                    ${proj ? `<div class="resource-card-project">${this.esc(proj.name)}</div>` : ''}
+                    ${contentText ? `<div class="resource-card-content${isTruncated ? ' truncated' : ''}">${contentText}</div>` : ''}
                     <div class="resource-card-actions">
                         <button class="btn btn-ghost btn-sm edit-res-btn" data-id="${r.id}">Edit</button>
                         <button class="btn btn-danger btn-sm delete-res-btn" data-id="${r.id}">Delete</button>
@@ -600,32 +592,12 @@ class QADashboard {
         document.getElementById('res-delete').addEventListener('click', () => this.deleteResource());
         document.getElementById('res-filter-type').addEventListener('change', () => this.renderResources());
 
-        document.getElementById('res-add-kv').addEventListener('click', () => this.addKvRow());
-
-        // Toggle KV vs content based on type
-        document.getElementById('res-type').addEventListener('change', () => this.updateResourceForm());
-    }
-
-    updateResourceForm() {
-        const type = document.getElementById('res-type').value;
-        const kvGroup = document.getElementById('res-entries-group');
-        const contentGroup = document.getElementById('res-content-group');
-        if (type === 'credential' || type === 'endpoint' || type === 'env') {
-            kvGroup.style.display = 'block';
-            contentGroup.querySelector('.form-label').textContent = 'Notes (optional)';
-        } else {
-            kvGroup.style.display = 'none';
-            contentGroup.querySelector('.form-label').textContent = 'Content';
-        }
-    }
-
-    addKvRow() {
-        const list = document.getElementById('res-kv-list');
-        const row = document.createElement('div');
-        row.className = 'kv-row';
-        row.innerHTML = '<input type="text" class="kv-key" placeholder="Key"><input type="text" class="kv-value" placeholder="Value"><button class="btn btn-ghost btn-sm kv-remove">&times;</button>';
-        row.querySelector('.kv-remove').addEventListener('click', () => row.remove());
-        list.appendChild(row);
+        document.querySelectorAll('#res-type-picker .type-option').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('#res-type-picker .type-option').forEach(b => b.classList.remove('selected'));
+                btn.classList.add('selected');
+            });
+        });
     }
 
     openResourceModal(res = null) {
@@ -635,24 +607,13 @@ class QADashboard {
         this.updateProjectSelects();
 
         document.getElementById('res-name').value = res?.name || '';
-        document.getElementById('res-type').value = res?.type || 'credential';
-        document.getElementById('res-project').value = res?.projectId || '';
         document.getElementById('res-content').value = res?.content || '';
-        document.getElementById('res-tags').value = (res?.tags || []).join(', ');
+        document.getElementById('res-project').value = res?.projectId || '';
 
-        // Reset KV rows
-        const kvList = document.getElementById('res-kv-list');
-        kvList.innerHTML = '';
-        const entries = res?.entries || [{ key: '', value: '' }];
-        entries.forEach(e => {
-            const row = document.createElement('div');
-            row.className = 'kv-row';
-            row.innerHTML = `<input type="text" class="kv-key" placeholder="Key" value="${this.esc(e.key || '')}"><input type="text" class="kv-value" placeholder="Value" value="${this.esc(e.value || '')}"><button class="btn btn-ghost btn-sm kv-remove">&times;</button>`;
-            row.querySelector('.kv-remove').addEventListener('click', () => { if (kvList.children.length > 1) row.remove(); });
-            kvList.appendChild(row);
-        });
+        // Set type picker
+        const type = res?.type || 'credentials';
+        document.querySelectorAll('#res-type-picker .type-option').forEach(b => b.classList.toggle('selected', b.dataset.value === type));
 
-        this.updateResourceForm();
         document.getElementById('res-modal').classList.add('show');
         document.getElementById('res-name').focus();
     }
@@ -661,20 +622,13 @@ class QADashboard {
         const name = document.getElementById('res-name').value.trim();
         if (!name) return;
 
-        const entries = [];
-        document.querySelectorAll('#res-kv-list .kv-row').forEach(row => {
-            const key = row.querySelector('.kv-key').value.trim();
-            const value = row.querySelector('.kv-value').value.trim();
-            if (key) entries.push({ key, value });
-        });
+        const type = document.querySelector('#res-type-picker .type-option.selected')?.dataset.value || 'other';
 
         const data = {
             name,
-            type: document.getElementById('res-type').value,
+            type,
             projectId: document.getElementById('res-project').value || null,
-            entries,
-            content: document.getElementById('res-content').value.trim(),
-            tags: document.getElementById('res-tags').value.split(',').map(t => t.trim()).filter(Boolean)
+            content: document.getElementById('res-content').value.trim()
         };
 
         if (this.editingResId) {

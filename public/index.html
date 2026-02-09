@@ -126,12 +126,11 @@
                     <h2>Resources</h2>
                     <div class="header-actions">
                         <div class="select-wrap"><select class="styled-select" id="res-filter-type">
-                            <option value="">All Types</option>
-                            <option value="credential">Credentials</option>
-                            <option value="endpoint">API Endpoints</option>
-                            <option value="doc">Documentation</option>
-                            <option value="env">Environment</option>
-                            <option value="note">Notes</option>
+                            <option value="">All</option>
+                            <option value="credentials">Credentials</option>
+                            <option value="api">API Info</option>
+                            <option value="docs">Docs</option>
+                            <option value="other">Other</option>
                         </select></div>
                         <button class="btn btn-primary" id="add-resource-btn">+ Add Resource</button>
                     </div>
@@ -328,43 +327,27 @@
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label class="form-label">Name</label>
-                    <input type="text" id="res-name" placeholder="e.g., Production API credentials">
+                    <label class="form-label">Title</label>
+                    <input type="text" id="res-name" placeholder="e.g., Test account login, API documentation, Staging URL...">
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Type</label>
-                        <div class="select-wrap"><select class="styled-select" id="res-type">
-                            <option value="credential">Credential</option>
-                            <option value="endpoint">API Endpoint</option>
-                            <option value="doc">Documentation</option>
-                            <option value="env">Environment</option>
-                            <option value="note">Note</option>
-                        </select></div>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Project</label>
-                        <div class="select-wrap"><select class="styled-select" id="res-project"></select></div>
-                    </div>
-                </div>
-                <div class="form-group" id="res-entries-group">
-                    <label class="form-label">Key-Value Pairs</label>
-                    <div class="kv-list" id="res-kv-list">
-                        <div class="kv-row">
-                            <input type="text" class="kv-key" placeholder="Key (e.g., API_KEY)">
-                            <input type="text" class="kv-value" placeholder="Value">
-                            <button class="btn btn-ghost btn-sm kv-remove">&times;</button>
+                        <label class="form-label">Category</label>
+                        <div class="type-picker" id="res-type-picker">
+                            <button type="button" class="type-option selected" data-value="credentials">Credentials</button>
+                            <button type="button" class="type-option" data-value="api">API Info</button>
+                            <button type="button" class="type-option" data-value="docs">Docs</button>
+                            <button type="button" class="type-option" data-value="other">Other</button>
                         </div>
                     </div>
-                    <button class="btn btn-ghost btn-sm" id="res-add-kv" style="margin-top:6px">+ Add field</button>
-                </div>
-                <div class="form-group" id="res-content-group">
-                    <label class="form-label">Content</label>
-                    <textarea id="res-content" rows="6" placeholder="Paste documentation, notes, API specs, or any reference material..."></textarea>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Tags <span style="font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></label>
-                    <input type="text" id="res-tags" placeholder="e.g., production, auth, staging">
+                    <label class="form-label">Content</label>
+                    <textarea id="res-content" rows="8" placeholder="Paste anything here — logins, URLs, API keys, documentation, notes...&#10;&#10;Example:&#10;URL: https://api.example.com&#10;Email: test@example.com&#10;Password: mypassword123&#10;API Key: sk-abc123..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Project <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></label>
+                    <div class="select-wrap"><select class="styled-select" id="res-project"></select></div>
                 </div>
             </div>
             <div class="modal-footer">
