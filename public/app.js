@@ -17,11 +17,13 @@ class QADashboard {
     }
 
     async init() {
+        this.chartPeriod = '7d';
         this.setupNav();
         this.setupModals();
         this.setupCodeViewer();
         this.setupRunDetail();
         this.setupResources();
+        this.setupDashboard();
         await this.loadAll();
         this.renderCurrentView();
     }
@@ -84,6 +86,17 @@ class QADashboard {
 
     // ── Dashboard ──
 
+    setupDashboard() {
+        document.querySelectorAll('.chart-period').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.chart-period').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                this.chartPeriod = btn.dataset.period;
+                this.renderChart();
+            });
+        });
+    }
+
     renderDashboard() {
         const grid = document.getElementById('dashboard-grid');
         const totalRuns = this.testRuns.length;
@@ -91,6 +104,10 @@ class QADashboard {
         const failedRuns = this.testRuns.filter(r => r.status === 'failed').length;
         const lastRun = this.testRuns[0];
         const passRate = totalRuns > 0 ? Math.round((passedRuns / totalRuns) * 100) : 0;
+
+        // Avg duration
+        const durations = this.testRuns.filter(r => r.duration);
+        const avgDur = durations.length > 0 ? durations.reduce((a, r) => a + r.duration, 0) / durations.length : 0;
 
         grid.innerHTML = `
             <div class="stat-card">
@@ -103,15 +120,15 @@ class QADashboard {
                 <div class="stat-card-value">${this.testCases.length}</div>
                 <div class="stat-card-sub">${this.testCases.filter(t => t.status === 'automated').length} automated · ${this.testCases.filter(t => t.status === 'draft').length} draft</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-card-label">Test Files</div>
-                <div class="stat-card-value">${this.testFiles.length}</div>
-                <div class="stat-card-sub">${this.testFiles.filter(f => f.type === 'api').length} API · ${this.testFiles.filter(f => f.type === 'ui').length} UI · ${this.testFiles.filter(f => f.type === 'unit').length} Unit</div>
-            </div>
             <div class="stat-card ${passRate >= 80 ? 'green' : passRate >= 50 ? 'amber' : 'red'}">
                 <div class="stat-card-label">Pass Rate</div>
                 <div class="stat-card-value">${passRate}%</div>
-                <div class="stat-card-sub">${passedRuns} passed · ${failedRuns} failed of ${totalRuns} runs</div>
+                <div class="stat-card-sub">${passedRuns} passed · ${failedRuns} failed of ${totalRuns}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-label">Total Runs</div>
+                <div class="stat-card-value">${totalRuns}</div>
+                <div class="stat-card-sub">Avg ${avgDur > 0 ? (avgDur / 1000).toFixed(1) + 's' : '—'} per run</div>
             </div>
             <div class="stat-card ${lastRun?.status === 'passed' ? 'green' : lastRun?.status === 'failed' ? 'red' : ''}">
                 <div class="stat-card-label">Last Run</div>
@@ -119,11 +136,222 @@ class QADashboard {
                 <div class="stat-card-sub">${lastRun ? this.timeAgo(lastRun.completedAt || lastRun.startedAt) + (lastRun.duration ? ` · ${(lastRun.duration / 1000).toFixed(1)}s` : '') : 'No runs yet'}</div>
             </div>
             <div class="stat-card">
-                <div class="stat-card-label">Resources</div>
-                <div class="stat-card-value">${this.resources.length}</div>
-                <div class="stat-card-sub">${this.resources.filter(r => r.type === 'credentials').length} credentials · ${this.resources.filter(r => r.type === 'api').length} API · ${this.resources.filter(r => r.type === 'docs').length} docs</div>
+                <div class="stat-card-label">Test Files</div>
+                <div class="stat-card-value">${this.testFiles.length}</div>
+                <div class="stat-card-sub">${this.testFiles.filter(f => f.type === 'api').length} API · ${this.testFiles.filter(f => f.type === 'ui').length} UI · ${this.testFiles.filter(f => f.type === 'unit').length} Unit</div>
             </div>
         `;
+
+        this.renderChart();
+        this.renderActivity();
+    }
+
+    // ── Chart ──
+
+    renderChart() {
+        const canvas = document.getElementById('runs-chart');
+        const container = document.getElementById('runs-chart-container');
+        const legend = document.getElementById('runs-chart-legend');
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+
+        const w = container.clientWidth;
+        const h = container.clientHeight || 180;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + 'px';
+        canvas.style.height = h + 'px';
+        ctx.scale(dpr, dpr);
+
+        // Build buckets based on period
+        const now = new Date();
+        let bucketCount, bucketMs, formatLabel, periodStart;
+
+        switch (this.chartPeriod) {
+            case '24h':
+                bucketCount = 24;
+                bucketMs = 3600000;
+                formatLabel = (d) => d.getHours() + ':00';
+                periodStart = new Date(now - 24 * 3600000);
+                break;
+            case '7d':
+                bucketCount = 7;
+                bucketMs = 86400000;
+                formatLabel = (d) => ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+                periodStart = new Date(now - 7 * 86400000);
+                break;
+            case '30d':
+                bucketCount = 30;
+                bucketMs = 86400000;
+                formatLabel = (d) => (d.getMonth()+1) + '/' + d.getDate();
+                periodStart = new Date(now - 30 * 86400000);
+                break;
+            case '90d':
+                bucketCount = 12; // ~weekly buckets
+                bucketMs = 7 * 86400000;
+                formatLabel = (d) => (d.getMonth()+1) + '/' + d.getDate();
+                periodStart = new Date(now - 90 * 86400000);
+                break;
+        }
+
+        // Fill buckets
+        const passed = new Array(bucketCount).fill(0);
+        const failed = new Array(bucketCount).fill(0);
+        const labels = [];
+
+        for (let i = 0; i < bucketCount; i++) {
+            const bucketStart = new Date(periodStart.getTime() + i * bucketMs);
+            labels.push(formatLabel(bucketStart));
+        }
+
+        // Count runs into buckets
+        for (const run of this.testRuns) {
+            const runDate = new Date(run.startedAt || run.completedAt);
+            if (runDate < periodStart) continue;
+            const bucket = Math.floor((runDate - periodStart) / bucketMs);
+            if (bucket >= 0 && bucket < bucketCount) {
+                if (run.status === 'passed') passed[bucket]++;
+                else if (run.status === 'failed' || run.status === 'error') failed[bucket]++;
+            }
+        }
+
+        const maxVal = Math.max(1, ...passed.map((p, i) => p + failed[i]));
+
+        // Draw
+        ctx.clearRect(0, 0, w, h);
+
+        const padLeft = 32;
+        const padRight = 12;
+        const padTop = 8;
+        const padBottom = 28;
+        const chartW = w - padLeft - padRight;
+        const chartH = h - padTop - padBottom;
+        const barGroupW = chartW / bucketCount;
+        const barW = Math.min(barGroupW * 0.6, 24);
+
+        // Grid lines
+        const gridLines = 4;
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([]);
+        for (let i = 0; i <= gridLines; i++) {
+            const y = padTop + (chartH / gridLines) * i;
+            ctx.beginPath();
+            ctx.moveTo(padLeft, y);
+            ctx.lineTo(w - padRight, y);
+            ctx.stroke();
+
+            // Y labels
+            const val = Math.round(maxVal * (1 - i / gridLines));
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.font = '10px DM Sans, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(val, padLeft - 6, y + 3);
+        }
+
+        // Bars
+        for (let i = 0; i < bucketCount; i++) {
+            const x = padLeft + barGroupW * i + (barGroupW - barW) / 2;
+            const total = passed[i] + failed[i];
+            const totalH = (total / maxVal) * chartH;
+            const passedH = (passed[i] / maxVal) * chartH;
+            const failedH = (failed[i] / maxVal) * chartH;
+
+            // Passed bar (bottom)
+            if (passed[i] > 0) {
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                this.roundedRect(ctx, x, padTop + chartH - totalH, barW, passedH, Math.min(3, barW/2));
+                ctx.fill();
+            }
+
+            // Failed bar (stacked on top)
+            if (failed[i] > 0) {
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                this.roundedRect(ctx, x, padTop + chartH - totalH, barW, failedH, Math.min(3, barW/2));
+                ctx.fill();
+            }
+
+            // Zero state — show a dim line
+            if (total === 0) {
+                ctx.fillStyle = 'rgba(255,255,255,0.04)';
+                ctx.beginPath();
+                this.roundedRect(ctx, x, padTop + chartH - 2, barW, 2, 1);
+                ctx.fill();
+            }
+
+            // X labels — show subset for readability
+            const showLabel = bucketCount <= 12 || i % Math.ceil(bucketCount / 10) === 0 || i === bucketCount - 1;
+            if (showLabel) {
+                ctx.fillStyle = 'rgba(255,255,255,0.25)';
+                ctx.font = '10px DM Sans, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(labels[i], x + barW / 2, h - 6);
+            }
+        }
+
+        // Legend
+        const totalPassed = passed.reduce((a, b) => a + b, 0);
+        const totalFailed = failed.reduce((a, b) => a + b, 0);
+        legend.innerHTML = `
+            <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#22c55e"></span>Passed (${totalPassed})</span>
+            <span class="chart-legend-item"><span class="chart-legend-dot" style="background:#ef4444"></span>Failed (${totalFailed})</span>
+        `;
+    }
+
+    roundedRect(ctx, x, y, w, h, r) {
+        if (h < r * 2) r = h / 2;
+        if (w < r * 2) r = w / 2;
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+        ctx.lineTo(x + w, y + h);
+        ctx.lineTo(x, y + h);
+        ctx.lineTo(x, y + r);
+        ctx.quadraticCurveTo(x, y, x + r, y);
+        ctx.closePath();
+    }
+
+    // ── Activity Feed ──
+
+    renderActivity() {
+        const el = document.getElementById('recent-activity');
+        // Merge runs + recent test files/cases into a timeline
+        const events = [];
+
+        for (const r of this.testRuns.slice(0, 15)) {
+            const file = this.testFiles.find(f => f.id === r.fileId);
+            const name = file ? file.filename : (r.type || 'all') + ' tests';
+            const res = r.results || {};
+            let desc = '';
+            if (r.status === 'running') desc = `Running <strong>${this.esc(name)}</strong>`;
+            else if (r.status === 'passed') desc = `<strong>${this.esc(name)}</strong> passed` + (res.total > 0 ? ` (${res.passed}/${res.total})` : '');
+            else if (r.status === 'failed') desc = `<strong>${this.esc(name)}</strong> failed` + (res.failed > 0 ? ` — ${res.failed} failure${res.failed > 1 ? 's' : ''}` : '');
+            else desc = `<strong>${this.esc(name)}</strong> error`;
+            events.push({ dot: r.status, text: desc, time: r.completedAt || r.startedAt });
+        }
+
+        // Recent test files created
+        for (const f of this.testFiles.slice(-5).reverse()) {
+            events.push({ dot: 'created', text: `Created <strong>${this.esc(f.filename)}</strong>`, time: f.createdAt });
+        }
+
+        // Sort by time desc
+        events.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+        if (!events.length) {
+            el.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-state-text">No activity yet</div></div>';
+            return;
+        }
+
+        el.innerHTML = events.slice(0, 12).map(e => `
+            <div class="activity-item">
+                <div class="activity-dot ${e.dot}"></div>
+                <div class="activity-text">${e.text}</div>
+                <div class="activity-time">${this.timeAgo(e.time)}</div>
+            </div>
+        `).join('');
     }
 
     renderSidebarStats() {

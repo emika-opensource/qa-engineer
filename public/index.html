@@ -55,6 +55,29 @@
                     <h2>Dashboard</h2>
                 </div>
                 <div class="dashboard-grid" id="dashboard-grid"></div>
+                <div class="dashboard-charts">
+                    <div class="chart-card chart-card-wide">
+                        <div class="chart-card-header">
+                            <span class="chart-card-title">Test Runs</span>
+                            <div class="chart-period-tabs">
+                                <button class="chart-period active" data-period="24h">24h</button>
+                                <button class="chart-period" data-period="7d">7d</button>
+                                <button class="chart-period" data-period="30d">30d</button>
+                                <button class="chart-period" data-period="90d">90d</button>
+                            </div>
+                        </div>
+                        <div class="chart-container" id="runs-chart-container">
+                            <canvas id="runs-chart"></canvas>
+                        </div>
+                        <div class="chart-legend" id="runs-chart-legend"></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-card-header">
+                            <span class="chart-card-title">Recent Activity</span>
+                        </div>
+                        <div class="recent-activity" id="recent-activity"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- Projects View -->
