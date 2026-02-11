@@ -3,7 +3,8 @@ const cors = require('cors');
 const fs = require('fs-extra');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const { execSync, spawn } = require('child_process');
+const { spawn } = require('child_process');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,6 +15,12 @@ const PROJECTS_DIR = path.join(DATA_DIR, 'projects');
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// ── Security: Sanitize file paths ──
+function sanitizeFilename(filename) {
+    // Strip path traversal and dangerous characters
+    return path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+}
 
 // ── Helpers ──
 
@@ -26,17 +33,97 @@ async function ensureDataDir() {
     await fs.ensureDir(path.join(TESTS_DIR, 'unit'));
     const dbFile = path.join(DATA_DIR, 'db.json');
     if (!(await fs.pathExists(dbFile))) {
-        await fs.writeJson(dbFile, {
-            projects: [],
-            testCases: [],
+        // First boot — seed demo content
+        const demoProjectId = uuidv4();
+        const demoFileId = uuidv4();
+        const demoUnitFileId = uuidv4();
+        const demoTestCaseId = uuidv4();
+
+        const apiTestPath = path.join(TESTS_DIR, 'api', 'emika-api.spec.js');
+        const unitTestPath = path.join(TESTS_DIR, 'unit', 'sample.test.js');
+
+        // Ensure demo test files exist on disk
+        if (!(await fs.pathExists(apiTestPath))) {
+            await fs.writeFile(apiTestPath, `const { test, expect } = require('@playwright/test');\n\nconst BASE_URL = process.env.API_URL || 'https://api.emika.ai';\n\ntest.describe('Emika API Tests', () => {\n  test('GET /health returns 200', async ({ request }) => {\n    const res = await request.get(\`\${BASE_URL}/health\`);\n    expect(res.ok()).toBeTruthy();\n  });\n});\n`, 'utf-8');
+        }
+        if (!(await fs.pathExists(unitTestPath))) {
+            await fs.writeFile(unitTestPath, `const { describe, it } = require('node:test');\nconst assert = require('node:assert');\n\ndescribe('Sample Unit Tests', () => {\n  it('basic arithmetic works', () => {\n    assert.strictEqual(2 + 2, 4);\n  });\n\n  it('string concatenation works', () => {\n    assert.strictEqual('hello' + ' ' + 'world', 'hello world');\n  });\n});\n`, 'utf-8');
+        }
+
+        const apiContent = await fs.readFile(apiTestPath, 'utf-8');
+        const unitContent = await fs.readFile(unitTestPath, 'utf-8');
+
+        const db = {
+            projects: [{
+                id: demoProjectId,
+                name: 'Demo Project',
+                description: 'Sample project to demonstrate the QA Dashboard. Feel free to edit or delete.',
+                baseUrl: 'https://api.emika.ai',
+                type: 'mixed',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }],
+            testCases: [{
+                id: demoTestCaseId,
+                projectId: demoProjectId,
+                title: 'Health endpoint returns 200',
+                description: 'Verify the API health check endpoint is reachable',
+                type: 'api',
+                priority: 'high',
+                status: 'automated',
+                steps: ['Send GET request to /health', 'Verify response status is 200', 'Verify response body indicates OK'],
+                expectedResult: 'API returns 200 OK with healthy status',
+                tags: ['smoke', 'api'],
+                automated: true,
+                testFileId: demoFileId,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                lastResult: null
+            }],
             testRuns: [],
-            testFiles: [],
-            resources: []
-        }, { spaces: 2 });
+            testFiles: [{
+                id: demoFileId,
+                projectId: demoProjectId,
+                filename: 'emika-api.spec.js',
+                filePath: apiTestPath,
+                type: 'api',
+                language: 'javascript',
+                description: 'API smoke tests for the Emika backend',
+                content: apiContent,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }, {
+                id: demoUnitFileId,
+                projectId: demoProjectId,
+                filename: 'sample.test.js',
+                filePath: unitTestPath,
+                type: 'unit',
+                language: 'javascript',
+                description: 'Sample unit tests demonstrating Node test runner',
+                content: unitContent,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }],
+            resources: [{
+                id: uuidv4(),
+                name: 'Getting Started',
+                type: 'docs',
+                projectId: null,
+                entries: [],
+                content: 'Welcome to QA Dashboard!\n\n1. Create a Project to organize your tests\n2. Add Test Files with your test code\n3. Click Run to execute tests and see results\n4. Use Test Cases to document what you\'re testing\n5. Store credentials and docs in Resources\n\nYour AI QA Engineer can also create and run tests for you automatically.',
+                tags: ['onboarding'],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            }],
+            _firstRun: true
+        };
+        await fs.writeJson(dbFile, db, { spaces: 2 });
     } else {
         // Migrate: add resources array if missing
         const db = await fs.readJson(dbFile);
-        if (!db.resources) { db.resources = []; await fs.writeJson(dbFile, db, { spaces: 2 }); }
+        let changed = false;
+        if (!db.resources) { db.resources = []; changed = true; }
+        if (changed) await fs.writeJson(dbFile, db, { spaces: 2 });
     }
 }
 
@@ -190,7 +277,7 @@ app.post('/api/test-files', async (req, res) => {
     const db = await loadDb();
     const id = uuidv4();
     const type = req.body.type || 'api';
-    const filename = req.body.filename || `test_${id.slice(0, 8)}.spec.js`;
+    const filename = sanitizeFilename(req.body.filename || `test_${id.slice(0, 8)}.spec.js`);
     const projectId = req.body.projectId || null;
 
     // Determine file path
@@ -277,15 +364,15 @@ app.post('/api/test-runs', async (req, res) => {
     const runId = uuidv4();
     const fileId = req.body.fileId;
     const projectId = req.body.projectId || null;
-    const type = req.body.type || 'api'; // api, ui, unit, file, custom
-    const command = req.body.command; // custom command
+    const type = req.body.type || 'api'; // api, ui, unit, all
+    // SECURITY: command field removed — commands are built server-side only
 
     let cmd;
     let targetPath;
 
-    if (command) {
-        // Custom command
-        cmd = command;
+    if (type === 'all') {
+        // Run all test types
+        cmd = `npx playwright test "${TESTS_DIR}" --reporter=list 2>&1; node --test "${path.join(TESTS_DIR, 'unit')}" 2>&1 || true`;
     } else if (fileId) {
         // Run specific file
         const f = db.testFiles.find(x => x.id === fileId);
@@ -498,18 +585,63 @@ async function saveConfig(config) {
 
 app.get('/api/config', async (req, res) => {
     const config = await loadConfig();
-    res.json(config);
+    // SECURITY: Never expose PIN in plaintext — return only whether it's set
+    const { pin, pinHash, ...safeConfig } = config;
+    safeConfig.pinEnabled = !!(pin || pinHash);
+    res.json(safeConfig);
+});
+
+// Server-side PIN verification
+app.post('/api/verify-pin', async (req, res) => {
+    const config = await loadConfig();
+    const entered = req.body.pin;
+    if (!entered || typeof entered !== 'string') return res.status(400).json({ error: 'PIN required' });
+
+    const storedHash = config.pinHash;
+    const storedPin = config.pin; // legacy support
+
+    // Check hashed pin first, then legacy plaintext
+    const enteredHash = crypto.createHash('sha256').update(entered).digest('hex');
+    if (storedHash && enteredHash === storedHash) {
+        return res.json({ success: true });
+    }
+    if (storedPin && entered === storedPin) {
+        // Migrate legacy pin to hash
+        config.pinHash = enteredHash;
+        delete config.pin;
+        await saveConfig(config);
+        return res.json({ success: true });
+    }
+    res.status(401).json({ success: false, error: 'Wrong PIN' });
 });
 
 app.put('/api/config', async (req, res) => {
     const config = await loadConfig();
-    Object.assign(config, req.body);
+    const { pin, ...otherFields } = req.body;
+
+    // Handle PIN update
+    if (pin !== undefined) {
+        if (pin === null) {
+            // Disable PIN
+            delete config.pin;
+            delete config.pinHash;
+        } else {
+            // Set new PIN — store only hash
+            config.pinHash = crypto.createHash('sha256').update(pin).digest('hex');
+            delete config.pin; // remove any legacy plaintext
+        }
+    }
+
+    Object.assign(config, otherFields);
     // Clean null values
     for (const k of Object.keys(config)) {
         if (config[k] === null) delete config[k];
     }
     await saveConfig(config);
-    res.json(config);
+    // Return safe config
+    const { pin: _p, pinHash: _h, ...safeConfig } = config;
+    safeConfig.pinEnabled = !!config.pinHash;
+    res.json(safeConfig);
 });
 
 // ── Health ──

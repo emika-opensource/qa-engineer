@@ -15,8 +15,7 @@
     "express": "^4.18.0",
     "cors": "^2.8.0",
     "fs-extra": "^11.0.0",
-    "uuid": "^9.0.0",
-    "ansi-to-html": "^0.7.2"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.41.0"

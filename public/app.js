@@ -17,13 +17,15 @@ class QADashboard {
     }
 
     async init() {
-        this.chartPeriod = '7d';
+        this.chartPeriod = '24h'; // FIX: match the HTML active button
+        this._loading = false;
         // Check PIN lock before anything
         if (await this.checkPinLock()) return; // locked — wait for PIN entry
         this.startApp();
     }
 
     async startApp() {
+        this.setupToast();
         this.setupNav();
         this.setupModals();
         this.setupCodeViewer();
@@ -32,8 +34,32 @@ class QADashboard {
         this.setupDashboard();
         this.setupPin();
         await this.loadAll();
-        this.renderCurrentView();
+        this.renderCurrentView(true); // pass flag to skip redundant loadAll
         this.updatePinBanner();
+    }
+
+    // ── Toast Notifications ──
+    setupToast() {
+        if (!document.getElementById('toast-container')) {
+            const container = document.createElement('div');
+            container.id = 'toast-container';
+            container.style.cssText = 'position:fixed;top:16px;right:16px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+            document.body.appendChild(container);
+        }
+    }
+
+    showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const colors = { success: '#22c55e', error: '#ef4444', info: '#3b82f6', warning: '#f59e0b' };
+        toast.style.cssText = `pointer-events:auto;padding:10px 16px;background:#1a1a24;border:1px solid ${colors[type] || colors.info}40;border-left:3px solid ${colors[type] || colors.info};border-radius:8px;color:#e4e4e7;font-size:13px;font-family:inherit;box-shadow:0 4px 12px rgba(0,0,0,0.4);opacity:0;transform:translateX(20px);transition:all 0.2s ease`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        requestAnimationFrame(() => { toast.style.opacity = '1'; toast.style.transform = 'translateX(0)'; });
+        setTimeout(() => {
+            toast.style.opacity = '0'; toast.style.transform = 'translateX(20px)';
+            setTimeout(() => toast.remove(), 200);
+        }, 3000);
     }
 
     // ── Navigation ──
@@ -53,8 +79,8 @@ class QADashboard {
         this.renderCurrentView();
     }
 
-    async renderCurrentView() {
-        await this.loadAll();
+    async renderCurrentView(skipLoad = false) {
+        if (!skipLoad) await this.loadAll();
         switch (this.currentView) {
             case 'dashboard': this.renderDashboard(); break;
             case 'projects': this.renderProjects(); break;
@@ -88,8 +114,19 @@ class QADashboard {
             const opts = { method, headers: { 'Content-Type': 'application/json' } };
             if (body) opts.body = JSON.stringify(body);
             const r = await fetch(url, opts);
-            return r.ok ? await r.json() : null;
-        } catch { return null; }
+            if (!r.ok) {
+                let errMsg = `Request failed (${r.status})`;
+                try { const errBody = await r.json(); if (errBody.error) errMsg = errBody.error; } catch {}
+                console.error(`API ${method} ${url}: ${errMsg}`);
+                if (method !== 'GET') this.showToast(errMsg, 'error');
+                return null;
+            }
+            return await r.json();
+        } catch (err) {
+            console.error(`API ${method} ${url}: ${err.message}`);
+            if (method !== 'GET') this.showToast('Network error — check your connection', 'error');
+            return null;
+        }
     }
 
     // ── Dashboard ──
@@ -107,6 +144,27 @@ class QADashboard {
 
     renderDashboard() {
         const grid = document.getElementById('dashboard-grid');
+
+        // Show onboarding if completely empty
+        if (this.projects.length === 0 && this.testFiles.length === 0 && this.testRuns.length === 0) {
+            grid.innerHTML = `
+                <div style="grid-column:1/-1;text-align:center;padding:48px 24px">
+                    <div style="font-size:36px;margin-bottom:16px">🧪</div>
+                    <h3 style="font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text)">Welcome to QA Dashboard</h3>
+                    <p style="font-size:14px;color:var(--text-muted);margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto;line-height:1.6">
+                        Your AI QA Engineer will create projects and tests here automatically.
+                        You can also set things up manually — start by creating a project, then add test files and run them.
+                    </p>
+                    <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+                        <button class="btn btn-primary" onclick="qa.switchView('projects');qa.openProjectModal()">Create a Project</button>
+                        <button class="btn btn-accent" onclick="qa.switchView('test-files')">Browse Test Files</button>
+                    </div>
+                </div>`;
+            this.renderChart();
+            this.renderActivity();
+            return;
+        }
+
         const totalRuns = this.testRuns.length;
         const passedRuns = this.testRuns.filter(r => r.status === 'passed').length;
         const failedRuns = this.testRuns.filter(r => r.status === 'failed').length;
@@ -399,6 +457,7 @@ class QADashboard {
                         ${lastRun ? `<span class="tag tag-${lastRun.status}">${lastRun.status}</span>` : ''}
                     </div>
                     <div class="list-item-actions">
+                        <button class="btn btn-ghost btn-sm edit-project-btn" data-id="${p.id}">Edit</button>
                         <button class="btn btn-accent btn-sm run-project-btn" data-id="${p.id}">Run</button>
                         <button class="btn btn-danger btn-sm delete-project-btn" data-id="${p.id}">Del</button>
                     </div>
@@ -406,6 +465,13 @@ class QADashboard {
             `;
         }).join('');
 
+        list.querySelectorAll('.edit-project-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const proj = this.projects.find(p => p.id === btn.dataset.id);
+                if (proj) this.openProjectModal(proj);
+            });
+        });
         list.querySelectorAll('.run-project-btn').forEach(btn => {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -416,7 +482,8 @@ class QADashboard {
             btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 if (!confirm('Delete this project and all its tests?')) return;
-                await this.api('DELETE', `/api/projects/${btn.dataset.id}`);
+                const result = await this.api('DELETE', `/api/projects/${btn.dataset.id}`);
+                if (result) this.showToast('Project deleted', 'success');
                 await this.renderCurrentView();
             });
         });
@@ -621,6 +688,7 @@ class QADashboard {
     }
 
     async runTests(opts) {
+        this.showToast('Starting test run...', 'info');
         const run = await this.api('POST', '/api/test-runs', opts);
         if (run) { this.switchView('test-runs'); this.pollRun(run.id); }
     }
@@ -653,7 +721,7 @@ class QADashboard {
             document.getElementById('run-detail').style.display = 'none';
             await this.runTests(opts);
         });
-        document.getElementById('run-all-btn').addEventListener('click', () => this.runTests({ type: 'api' }));
+        document.getElementById('run-all-btn').addEventListener('click', () => this.runTests({ type: 'all' }));
         document.getElementById('tr-filter-project').addEventListener('change', () => this.renderTestRuns());
         document.getElementById('tr-filter-status').addEventListener('change', () => this.renderTestRuns());
 
@@ -874,11 +942,13 @@ class QADashboard {
             content: document.getElementById('res-content').value.trim()
         };
 
+        let result;
         if (this.editingResId) {
-            await this.api('PUT', `/api/resources/${this.editingResId}`, data);
+            result = await this.api('PUT', `/api/resources/${this.editingResId}`, data);
         } else {
-            await this.api('POST', '/api/resources', data);
+            result = await this.api('POST', '/api/resources', data);
         }
+        if (result) this.showToast(this.editingResId ? 'Resource updated' : 'Resource saved', 'success');
         this.closeModal('res-modal');
         this.editingResId = null;
         await this.renderCurrentView();
@@ -960,7 +1030,8 @@ class QADashboard {
 
     async saveCodeFile() {
         if (!this.editingFileId) return;
-        await this.api('PUT', `/api/test-files/${this.editingFileId}`, { content: document.getElementById('code-editor').value });
+        const result = await this.api('PUT', `/api/test-files/${this.editingFileId}`, { content: document.getElementById('code-editor').value });
+        if (result) this.showToast('File saved', 'success');
     }
 
     // ── Modals ──
@@ -1008,11 +1079,14 @@ class QADashboard {
 
     closeModal(id) { document.getElementById(id).classList.remove('show'); }
 
-    openProjectModal() {
-        document.getElementById('project-name').value = '';
-        document.getElementById('project-desc').value = '';
-        document.getElementById('project-url').value = '';
-        document.querySelectorAll('#project-type-picker .type-option').forEach(b => b.classList.toggle('selected', b.dataset.value === 'mixed'));
+    openProjectModal(project = null) {
+        this._editingProjectId = project?.id || null;
+        document.getElementById('project-modal-title').textContent = project ? 'Edit Project' : 'New Project';
+        document.getElementById('project-save').textContent = project ? 'Save' : 'Create';
+        document.getElementById('project-name').value = project?.name || '';
+        document.getElementById('project-desc').value = project?.description || '';
+        document.getElementById('project-url').value = project?.baseUrl || '';
+        document.querySelectorAll('#project-type-picker .type-option').forEach(b => b.classList.toggle('selected', b.dataset.value === (project?.type || 'mixed')));
         document.getElementById('project-modal').classList.add('show');
         document.getElementById('project-name').focus();
     }
@@ -1021,7 +1095,15 @@ class QADashboard {
         const name = document.getElementById('project-name').value.trim();
         if (!name) return;
         const type = document.querySelector('#project-type-picker .type-option.selected')?.dataset.value || 'mixed';
-        await this.api('POST', '/api/projects', { name, description: document.getElementById('project-desc').value.trim(), baseUrl: document.getElementById('project-url').value.trim(), type });
+        const editId = this._editingProjectId;
+        let result;
+        if (editId) {
+            result = await this.api('PUT', `/api/projects/${editId}`, { name, description: document.getElementById('project-desc').value.trim(), baseUrl: document.getElementById('project-url').value.trim(), type });
+        } else {
+            result = await this.api('POST', '/api/projects', { name, description: document.getElementById('project-desc').value.trim(), baseUrl: document.getElementById('project-url').value.trim(), type });
+        }
+        if (result) this.showToast(editId ? 'Project updated' : 'Project created', 'success');
+        this._editingProjectId = null;
         this.closeModal('project-modal');
         await this.renderCurrentView();
     }
@@ -1057,8 +1139,10 @@ class QADashboard {
         const stepsText = document.getElementById('tc-steps').value.trim();
         const steps = stepsText ? stepsText.split('\n').filter(s => s.trim()) : [];
         const data = { title, description: document.getElementById('tc-desc').value.trim(), projectId: document.getElementById('tc-project').value || null, type: document.getElementById('tc-type').value, priority, steps, expectedResult: document.getElementById('tc-expected').value.trim() };
-        if (this.editingTcId) await this.api('PUT', `/api/test-cases/${this.editingTcId}`, data);
-        else await this.api('POST', '/api/test-cases', data);
+        let result;
+        if (this.editingTcId) result = await this.api('PUT', `/api/test-cases/${this.editingTcId}`, data);
+        else result = await this.api('POST', '/api/test-cases', data);
+        if (result) this.showToast(this.editingTcId ? 'Test case updated' : 'Test case created', 'success');
         this.closeModal('tc-modal');
         this.editingTcId = null;
         await this.renderCurrentView();
@@ -1111,23 +1195,22 @@ class QADashboard {
     // ── PIN Protection ──
 
     async checkPinLock() {
-        // Fetch current pin from server
+        // Check if PIN is enabled (server never exposes the actual PIN)
         const config = await this.api('GET', '/api/config');
-        const pin = config?.pin;
-        if (!pin) return false; // no pin set
+        if (!config?.pinEnabled) return false; // no pin set
 
-        // Check localStorage
-        const saved = localStorage.getItem('qa-pin-auth');
-        if (saved === pin) return false; // already authenticated
+        // Check if already authenticated this session
+        if (sessionStorage.getItem('qa-pin-auth') === 'true') return false;
 
         // Show lock screen
         const lock = document.getElementById('pin-lock');
         lock.style.display = 'flex';
         document.querySelector('.app').style.display = 'none';
 
-        this.createPinInputs('pin-lock-inputs', (entered) => {
-            if (entered === pin) {
-                localStorage.setItem('qa-pin-auth', pin);
+        this.createPinInputs('pin-lock-inputs', async (entered) => {
+            const result = await this.api('POST', '/api/verify-pin', { pin: entered });
+            if (result?.success) {
+                sessionStorage.setItem('qa-pin-auth', 'true');
                 lock.style.display = 'none';
                 document.querySelector('.app').style.display = 'flex';
                 this.startApp();
@@ -1200,13 +1283,13 @@ class QADashboard {
 
     async openPinModal() {
         const config = await this.api('GET', '/api/config');
-        const currentPin = config?.pin;
+        const pinEnabled = config?.pinEnabled;
 
         const status = document.getElementById('pin-current-status');
         const disableBtn = document.getElementById('pin-disable');
 
-        if (currentPin) {
-            status.innerHTML = `<span style="font-size:12px;color:var(--green)">PIN is active: <strong style="font-family:JetBrains Mono,monospace;letter-spacing:2px">${currentPin}</strong></span>`;
+        if (pinEnabled) {
+            status.innerHTML = `<span style="font-size:12px;color:var(--green)">PIN is currently active. Enter a new PIN to change it.</span>`;
             disableBtn.style.display = 'block';
         } else {
             status.innerHTML = `<span style="font-size:12px;color:var(--text-dim)">No PIN set — page is open to anyone with the link</span>`;
@@ -1214,11 +1297,6 @@ class QADashboard {
         }
 
         this.createPinInputs('pin-settings-inputs', null);
-        // Pre-fill if exists
-        if (currentPin) {
-            const inputs = document.querySelectorAll('#pin-settings-inputs .pin-digit');
-            for (let i = 0; i < 4 && i < currentPin.length; i++) inputs[i].value = currentPin[i];
-        }
 
         document.getElementById('pin-modal').classList.add('show');
     }
@@ -1231,14 +1309,16 @@ class QADashboard {
             return;
         }
         await this.api('PUT', '/api/config', { pin });
-        localStorage.setItem('qa-pin-auth', pin);
+        sessionStorage.setItem('qa-pin-auth', 'true');
+        this.showToast('PIN saved', 'success');
         this.closeModal('pin-modal');
         this.updatePinBanner();
     }
 
     async disablePin() {
         await this.api('PUT', '/api/config', { pin: null });
-        localStorage.removeItem('qa-pin-auth');
+        sessionStorage.removeItem('qa-pin-auth');
+        this.showToast('PIN disabled', 'info');
         this.closeModal('pin-modal');
         this.updatePinBanner();
     }
@@ -1247,7 +1327,7 @@ class QADashboard {
         const config = await this.api('GET', '/api/config');
         const banner = document.getElementById('pincode-banner');
         const text = document.getElementById('pincode-banner-text');
-        if (config?.pin) {
+        if (config?.pinEnabled) {
             banner.classList.add('active');
             text.textContent = 'PIN protected';
         } else {

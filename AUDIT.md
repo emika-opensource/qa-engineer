@@ -230,3 +230,41 @@ The QA Engineer image is **functionally solid** — it has a complete dashboard 
 4. Command injection vulnerability must be fixed before any public deployment
 
 **If I could only fix 3 things:** Pre-register demo content (#5), add the welcome screen (#4), and fix the command injection (#1). That alone would cut time-to-first-value from "confused at empty dashboard" to "sees tests, clicks Run, gets results in 10 seconds."
+
+---
+
+## Fixes Applied
+
+**Date:** 2026-02-11
+
+### Critical (Security)
+
+1. **✅ Command injection fixed.** Removed the `command` field from `POST /api/test-runs`. All commands are now built server-side from validated `fileId`, `projectId`, or `type` parameters. Added `type: 'all'` to run all test types safely.
+
+2. **✅ PIN no longer exposed in plaintext.** `GET /api/config` now returns only `pinEnabled: true/false`. Added `POST /api/verify-pin` for server-side verification. PINs are hashed with SHA-256 before storage. Legacy plaintext PINs are auto-migrated on first verify. Client uses `sessionStorage` instead of `localStorage` with the actual PIN.
+
+3. **✅ Filename sanitization added.** `sanitizeFilename()` strips path traversal (`..`, `/`) and dangerous characters from user-supplied filenames in `POST /api/test-files`.
+
+### High Impact (Time-to-First-Value)
+
+4. **✅ First-run welcome screen added.** When projects, files, and runs are all empty, the dashboard shows a friendly onboarding card with "Create a Project" and "Browse Test Files" buttons.
+
+5. **✅ Demo content pre-registered on first boot.** `ensureDataDir()` now seeds the DB with: a Demo Project, the existing `emika-api.spec.js` registered as a test file, a `sample.test.js` unit test file, a demo test case, and a "Getting Started" resource doc. Users see content immediately.
+
+6. **✅ Toast notifications added.** All save, delete, create, and run-start operations now show toast feedback. API errors also show toasts for non-GET requests. Silent operations are no longer silent.
+
+7. **✅ Double `loadAll()` on startup fixed.** `renderCurrentView()` now accepts a `skipLoad` parameter. `startApp()` calls `loadAll()` once, then `renderCurrentView(true)` to skip the redundant second load.
+
+### Medium Impact (UX Polish)
+
+8. **✅ Chart period mismatch fixed.** `this.chartPeriod` now initializes to `'24h'` matching the HTML active button.
+
+9. **✅ "Run All Tests" fixed.** The button now sends `{ type: 'all' }` which runs both Playwright and Node test runner across all test directories.
+
+10. **✅ Project edit functionality added.** Edit button added to project list. `openProjectModal()` now accepts a project object to pre-fill the form. `saveProject()` uses PUT for edits, POST for new.
+
+11. **✅ API error handling improved.** `api()` method now checks `res.ok`, logs errors to console, parses error messages from response body, and shows toast notifications for failures.
+
+### Cleanup
+
+12. **✅ Removed unused `ansi-to-html` dependency** from package.json.
