@@ -1,5 +1,15 @@
 # QA Dashboard — API Reference
 
+## ⚠️ IMPORTANT: Port 3000
+
+Your **QA Dashboard** web application is ALREADY RUNNING on port 3000. It starts automatically via start.sh.
+
+- **DO NOT** kill anything on port 3000 — that is YOUR app
+- **DO NOT** try to start a new server on port 3000
+- The app is accessible to the user via the browser panel (iframe)
+- If you need to build something for the user, deploy it on a DIFFERENT port using PM2
+
+
 Base URL: `http://localhost:3000`
 
 ---
