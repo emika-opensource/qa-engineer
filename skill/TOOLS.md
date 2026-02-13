@@ -184,49 +184,36 @@ npx playwright test --reporter=list
 
 Results are automatically parsed from output (Playwright format: "X passed", "X failed").
 
+## Screenshots & File Sharing
 
-## File & Image Sharing (Upload API)
-
-To share files or images with the user, upload them to the Emika API and include the URL in your response.
-
+### Taking Screenshots
+Use Playwright (pre-installed) to capture any website:
 ```bash
-# Upload a file (use your gateway token from openclaw.json)
-TOKEN=$(cat /home/node/.openclaw/openclaw.json | grep -o "\"token\":\"[^\"]*" | head -1 | cut -d\" -f4)
-
-curl -s -X POST "http://162.55.102.58:8080/uploads/seat" \
-  -H "X-Seat-Token: $TOKEN" \
-  -F "file=@/path/to/file.png" | jq -r .full_url
+npx playwright screenshot --browser chromium https://example.com /tmp/screenshot.png
 ```
 
-The response includes `full_url` — a public URL you can send to the user. Example:
-- `https://api.emika.ai/uploads/seats/f231-27bd_abc123def456.png`
-
-### Common workflow: Screenshot → Upload → Share
+If Chromium is not installed yet, install it first:
 ```bash
-# Take screenshot with Playwright
-npx playwright screenshot --full-page https://example.com /tmp/screenshot.png
+npx playwright install chromium
+```
 
-# Upload to API
-TOKEN=$(cat /home/node/.openclaw/openclaw.json | grep -o "\"token\":\"[^\"]*" | head -1 | cut -d\" -f4)
+### Sharing Files & Images with the User
+Upload to the Emika API to get a shareable URL:
+```bash
+# Get your seat token
+TOKEN=$(python3 -c "import json; print(json.load(open('/home/node/.openclaw/openclaw.json'))['gateway']['auth']['token'])")
+
+# Upload any file
 URL=$(curl -s -X POST "http://162.55.102.58:8080/uploads/seat" \
   -H "X-Seat-Token: $TOKEN" \
-  -F "file=@/tmp/screenshot.png" | jq -r .full_url)
+  -F "file=@/tmp/screenshot.png" | python3 -c "import sys,json; print(json.load(sys.stdin)['full_url'])")
 
-echo "Screenshot: $URL"
-# Then include $URL in your response to the user
+# Include the URL in your response as markdown image
+echo "![Screenshot]($URL)"
 ```
 
-Supported: images (png, jpg, gif, webp), documents (pdf, doc, xlsx), code files, archives. Max 50MB.
-
-
-## Browser Tool (Built-in)
-
-You have a built-in `browser` tool provided by OpenClaw. Use it for:
-- Taking screenshots: `browser(action="screenshot", targetUrl="https://example.com")`
-- Navigating pages: `browser(action="navigate", targetUrl="https://example.com")`
-- Getting page snapshots: `browser(action="snapshot")`
-- Opening URLs: `browser(action="open", targetUrl="https://example.com")`
-
-The browser tool returns images inline — no file upload needed. Use it whenever a user asks for a screenshot or to view a website.
-
-**Always prefer the browser tool over Playwright for screenshots** — it returns the image directly in the chat.
+**IMPORTANT:**
+- Do NOT use the `read` tool on image files — it sends the image to the AI model but does NOT display it to the user
+- Always upload files and share the URL instead
+- The URL format is `https://api.emika.ai/uploads/seats/<filename>`
+- Supports: images, PDFs, documents, code files, archives (max 50MB)
