@@ -1,5 +1,9 @@
 node_modules/
-data/
+# Runtime data (user-generated)
+data/*.db
+data/*.log
+data/projects/
+data/kb/
 test-results/
 playwright-report/
 *.log

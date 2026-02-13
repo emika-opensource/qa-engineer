@@ -183,3 +183,37 @@ npx playwright test --reporter=list
 ```
 
 Results are automatically parsed from output (Playwright format: "X passed", "X failed").
+
+
+## File & Image Sharing (Upload API)
+
+To share files or images with the user, upload them to the Emika API and include the URL in your response.
+
+```bash
+# Upload a file (use your gateway token from openclaw.json)
+TOKEN=$(cat /home/node/.openclaw/openclaw.json | grep -o "\"token\":\"[^\"]*" | head -1 | cut -d\" -f4)
+
+curl -s -X POST "http://162.55.102.58:8080/uploads/seat" \
+  -H "X-Seat-Token: $TOKEN" \
+  -F "file=@/path/to/file.png" | jq -r .full_url
+```
+
+The response includes `full_url` — a public URL you can send to the user. Example:
+- `https://api.emika.ai/uploads/seats/f231-27bd_abc123def456.png`
+
+### Common workflow: Screenshot → Upload → Share
+```bash
+# Take screenshot with Playwright
+npx playwright screenshot --full-page https://example.com /tmp/screenshot.png
+
+# Upload to API
+TOKEN=$(cat /home/node/.openclaw/openclaw.json | grep -o "\"token\":\"[^\"]*" | head -1 | cut -d\" -f4)
+URL=$(curl -s -X POST "http://162.55.102.58:8080/uploads/seat" \
+  -H "X-Seat-Token: $TOKEN" \
+  -F "file=@/tmp/screenshot.png" | jq -r .full_url)
+
+echo "Screenshot: $URL"
+# Then include $URL in your response to the user
+```
+
+Supported: images (png, jpg, gif, webp), documents (pdf, doc, xlsx), code files, archives. Max 50MB.
