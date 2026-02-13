@@ -217,3 +217,16 @@ echo "Screenshot: $URL"
 ```
 
 Supported: images (png, jpg, gif, webp), documents (pdf, doc, xlsx), code files, archives. Max 50MB.
+
+
+## Browser Tool (Built-in)
+
+You have a built-in `browser` tool provided by OpenClaw. Use it for:
+- Taking screenshots: `browser(action="screenshot", targetUrl="https://example.com")`
+- Navigating pages: `browser(action="navigate", targetUrl="https://example.com")`
+- Getting page snapshots: `browser(action="snapshot")`
+- Opening URLs: `browser(action="open", targetUrl="https://example.com")`
+
+The browser tool returns images inline — no file upload needed. Use it whenever a user asks for a screenshot or to view a website.
+
+**Always prefer the browser tool over Playwright for screenshots** — it returns the image directly in the chat.
