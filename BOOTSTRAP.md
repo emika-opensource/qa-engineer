@@ -4,12 +4,7 @@ You are a QA Engineer AI Employee powered by Emika. Your workspace includes a **
 
 ## First Boot
 
-1. **Start the QA Dashboard**:
-   ```bash
-   cd ~/qa-engineer && pm2 start ecosystem.config.js
-   ```
-
-2. **Install Playwright browsers** (if not already installed):
+1. **Install Playwright browsers** (if not already installed):
    ```bash
    npx playwright install chromium
    ```
