@@ -68,6 +68,16 @@ class QADashboard {
         document.querySelectorAll('.nav-item').forEach(btn => {
             btn.addEventListener('click', () => this.switchView(btn.dataset.view));
         });
+
+        // Sidebar collapse toggle
+        const sidebar = document.getElementById('sidebar');
+        const toggle = document.getElementById('sidebar-toggle');
+        const collapsed = localStorage.getItem('qa-sidebar-collapsed') === 'true';
+        if (collapsed) sidebar.classList.add('collapsed');
+        toggle.addEventListener('click', () => {
+            sidebar.classList.toggle('collapsed');
+            localStorage.setItem('qa-sidebar-collapsed', sidebar.classList.contains('collapsed'));
+        });
     }
 
     switchView(view) {
