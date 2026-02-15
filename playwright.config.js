@@ -12,7 +12,7 @@ module.exports = defineConfig({
         },
     },
     projects: [
-        { name: 'api', testDir: './tests/api' },
-        { name: 'ui', testDir: './tests/ui', use: { browserName: 'chromium', headless: true } },
+        { name: 'api', testDir: './tests' },
+        { name: 'ui', testDir: './tests', use: { browserName: 'chromium', headless: true } },
     ],
 });
