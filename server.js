@@ -33,89 +33,13 @@ async function ensureDataDir() {
     await fs.ensureDir(path.join(TESTS_DIR, 'unit'));
     const dbFile = path.join(DATA_DIR, 'db.json');
     if (!(await fs.pathExists(dbFile))) {
-        // First boot — seed demo content
-        const demoProjectId = uuidv4();
-        const demoFileId = uuidv4();
-        const demoUnitFileId = uuidv4();
-        const demoTestCaseId = uuidv4();
-
-        const apiTestPath = path.join(TESTS_DIR, 'api', 'emika-api.spec.js');
-        const unitTestPath = path.join(TESTS_DIR, 'unit', 'sample.test.js');
-
-        // Ensure demo test files exist on disk
-        if (!(await fs.pathExists(apiTestPath))) {
-            await fs.writeFile(apiTestPath, `const { test, expect } = require('@playwright/test');\n\nconst BASE_URL = process.env.API_URL || 'https://api.emika.ai';\n\ntest.describe('Emika API Tests', () => {\n  test('GET /health returns 200', async ({ request }) => {\n    const res = await request.get(\`\${BASE_URL}/health\`);\n    expect(res.ok()).toBeTruthy();\n  });\n});\n`, 'utf-8');
-        }
-        if (!(await fs.pathExists(unitTestPath))) {
-            await fs.writeFile(unitTestPath, `const { describe, it } = require('node:test');\nconst assert = require('node:assert');\n\ndescribe('Sample Unit Tests', () => {\n  it('basic arithmetic works', () => {\n    assert.strictEqual(2 + 2, 4);\n  });\n\n  it('string concatenation works', () => {\n    assert.strictEqual('hello' + ' ' + 'world', 'hello world');\n  });\n});\n`, 'utf-8');
-        }
-
-        const apiContent = await fs.readFile(apiTestPath, 'utf-8');
-        const unitContent = await fs.readFile(unitTestPath, 'utf-8');
-
+        // First boot — clean empty database
         const db = {
-            projects: [{
-                id: demoProjectId,
-                name: 'Demo Project',
-                description: 'Sample project to demonstrate the QA Dashboard. Feel free to edit or delete.',
-                baseUrl: 'https://api.emika.ai',
-                type: 'mixed',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            }],
-            testCases: [{
-                id: demoTestCaseId,
-                projectId: demoProjectId,
-                title: 'Health endpoint returns 200',
-                description: 'Verify the API health check endpoint is reachable',
-                type: 'api',
-                priority: 'high',
-                status: 'automated',
-                steps: ['Send GET request to /health', 'Verify response status is 200', 'Verify response body indicates OK'],
-                expectedResult: 'API returns 200 OK with healthy status',
-                tags: ['smoke', 'api'],
-                automated: true,
-                testFileId: demoFileId,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                lastResult: null
-            }],
+            projects: [],
+            testCases: [],
             testRuns: [],
-            testFiles: [{
-                id: demoFileId,
-                projectId: demoProjectId,
-                filename: 'emika-api.spec.js',
-                filePath: apiTestPath,
-                type: 'api',
-                language: 'javascript',
-                description: 'API smoke tests for the Emika backend',
-                content: apiContent,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            }, {
-                id: demoUnitFileId,
-                projectId: demoProjectId,
-                filename: 'sample.test.js',
-                filePath: unitTestPath,
-                type: 'unit',
-                language: 'javascript',
-                description: 'Sample unit tests demonstrating Node test runner',
-                content: unitContent,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            }],
-            resources: [{
-                id: uuidv4(),
-                name: 'Getting Started',
-                type: 'docs',
-                projectId: null,
-                entries: [],
-                content: 'Welcome to QA Dashboard!\n\n1. Create a Project to organize your tests\n2. Add Test Files with your test code\n3. Click Run to execute tests and see results\n4. Use Test Cases to document what you\'re testing\n5. Store credentials and docs in Resources\n\nYour AI QA Engineer can also create and run tests for you automatically.',
-                tags: ['onboarding'],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            }],
-            _firstRun: true
+            testFiles: [],
+            resources: []
         };
         await fs.writeJson(dbFile, db, { spaces: 2 });
     } else {
