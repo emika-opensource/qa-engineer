@@ -1110,9 +1110,9 @@ body {
 .priority-option[data-value="medium"].selected { border-color: rgba(59,130,246,0.4); color: var(--blue); background: rgba(59,130,246,0.08); }
 
 /* ── Type Picker ── */
-.type-picker { display: flex; gap: 6px; }
+.type-picker { display: flex; gap: 6px; flex-wrap: nowrap; }
 .type-option {
-    flex: 1;
+    flex: 1 1 0;
     padding: 9px 10px;
     background: rgba(255,255,255,0.03);
     border: 1px solid var(--border);
@@ -1123,6 +1123,7 @@ body {
     cursor: pointer;
     transition: all 0.12s;
     text-align: center;
+    white-space: nowrap;
 }
 .type-option:hover { background: var(--bg-hover); }
 .type-option.selected { border-color: rgba(192,192,192,0.3); color: var(--text); background: rgba(255,255,255,0.06); }
